@@ -1,3 +1,6 @@
+import { JobCard } from "@/components/JobCard";
+import { JOBS } from "@/lib/jobs";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-white font-sans text-neutral-900 antialiased">
@@ -33,13 +36,13 @@ export default function Home() {
 
             <div className="hidden items-center gap-6 lg:gap-8 md:flex">
               <a
-                href="#jobs"
+                href="/jobs"
                 className="text-sm font-medium text-neutral-600 transition-colors hover:text-neutral-900"
               >
                 Browse Jobs
               </a>
               <a
-                href="#internships"
+                href="/internships"
                 className="text-sm font-medium text-neutral-600 transition-colors hover:text-neutral-900"
               >
                 Internships
@@ -75,13 +78,13 @@ export default function Home() {
           </div>
           <div className="flex gap-1 overflow-x-auto border-t border-neutral-100 pb-3 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
             <a
-              href="#jobs"
+              href="/jobs"
               className="shrink-0 rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700"
             >
               Browse Jobs
             </a>
             <a
-              href="#internships"
+              href="/internships"
               className="shrink-0 rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700"
             >
               Internships
@@ -196,6 +199,42 @@ export default function Home() {
                 Ghost jobs removed in 48hrs
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Featured jobs */}
+        <section
+          className="border-b border-neutral-100 bg-gradient-to-b from-white to-neutral-50/40 px-4 py-14 sm:px-6 sm:py-16 lg:px-8"
+          aria-labelledby="featured-jobs-heading"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2
+                  id="featured-jobs-heading"
+                  className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl"
+                >
+                  Featured jobs
+                </h2>
+                <p className="mt-2 max-w-2xl text-neutral-600">
+                  Hand-picked verified roles with salary upfront—no ghost
+                  listings.
+                </p>
+              </div>
+              <a
+                href="/jobs"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-50"
+              >
+                View all jobs
+              </a>
+            </div>
+            <ul className="mt-10 grid list-none gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {JOBS.map((job) => (
+                <li key={job.id}>
+                  <JobCard job={job} titleTag="h3" />
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 

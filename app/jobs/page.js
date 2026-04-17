@@ -1,106 +1,12 @@
 "use client";
 
+import { JobCard } from "@/components/JobCard";
+import { JOBS } from "@/lib/jobs";
 import { useMemo, useState } from "react";
-
-const JOBS = [
-  {
-    id: "1",
-    company: "Stripe",
-    title: "Software Engineer, Payments Platform",
-    location: "San Francisco, CA",
-    locationType: "Hybrid",
-    salaryMin: 198000,
-    salaryMax: 265000,
-    jobType: "Full-time",
-    experience: "Senior",
-    posted: "2026-04-14",
-  },
-  {
-    id: "2",
-    company: "Notion",
-    title: "Product Engineer, Growth",
-    location: "Remote (US)",
-    locationType: "Remote",
-    salaryMin: 175000,
-    salaryMax: 230000,
-    jobType: "Full-time",
-    experience: "Mid",
-    posted: "2026-04-13",
-  },
-  {
-    id: "3",
-    company: "Vercel",
-    title: "Developer Experience Engineer",
-    location: "Remote (Global)",
-    locationType: "Remote",
-    salaryMin: 160000,
-    salaryMax: 210000,
-    jobType: "Full-time",
-    experience: "Mid",
-    posted: "2026-04-12",
-  },
-  {
-    id: "4",
-    company: "Linear",
-    title: "Staff Frontend Engineer",
-    location: "San Francisco, CA",
-    locationType: "On-site",
-    salaryMin: 220000,
-    salaryMax: 290000,
-    jobType: "Full-time",
-    experience: "Staff",
-    posted: "2026-04-11",
-  },
-  {
-    id: "5",
-    company: "Figma",
-    title: "Software Engineer, Editor Performance",
-    location: "New York, NY",
-    locationType: "Hybrid",
-    salaryMin: 185000,
-    salaryMax: 245000,
-    jobType: "Full-time",
-    experience: "Senior",
-    posted: "2026-04-10",
-  },
-  {
-    id: "6",
-    company: "Anthropic",
-    title: "Machine Learning Engineer, Inference",
-    location: "San Francisco, CA",
-    locationType: "Hybrid",
-    salaryMin: 240000,
-    salaryMax: 320000,
-    jobType: "Contract",
-    experience: "Senior",
-    posted: "2026-04-09",
-  },
-];
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract"];
 const LOCATION_MODES = ["Remote", "On-site", "Hybrid"];
 const EXPERIENCE_LEVELS = ["Entry", "Mid", "Senior", "Staff"];
-
-function formatSalary(min, max) {
-  const fmt = (n) =>
-    n >= 1000
-      ? `$${Math.round(n / 1000)}k`
-      : new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumFractionDigits: 0,
-        }).format(n);
-  return `${fmt(min)} – ${fmt(max)}`;
-}
-
-function formatPosted(iso) {
-  const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export default function JobsPage() {
   const [jobType, setJobType] = useState("all");
@@ -387,44 +293,7 @@ export default function JobsPage() {
               <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {sorted.map((job) => (
                   <li key={job.id}>
-                    <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-neutral-900">
-                          {job.company}
-                        </p>
-                        <span className="shrink-0 rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
-                          Verified
-                        </span>
-                      </div>
-                      <h2 className="mt-2 text-lg font-semibold leading-snug text-neutral-900">
-                        {job.title}
-                      </h2>
-                      <p className="mt-2 text-sm text-neutral-600">
-                        {job.location}
-                      </p>
-                      <p className="mt-3 text-base font-semibold text-[#1D9E75]">
-                        {formatSalary(job.salaryMin, job.salaryMax)}
-                      </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-700">
-                          {job.jobType}
-                        </span>
-                        <span className="inline-flex rounded-lg border border-neutral-100 bg-white px-2.5 py-1 text-xs text-neutral-500">
-                          {job.locationType}
-                        </span>
-                      </div>
-                      <p className="mt-4 text-xs text-neutral-400">
-                        Posted {formatPosted(job.posted)}
-                      </p>
-                      <div className="mt-auto flex pt-5">
-                        <button
-                          type="button"
-                          className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    </article>
+                    <JobCard job={job} titleTag="h2" />
                   </li>
                 ))}
               </ul>
