@@ -1,10 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { supabase } from '@/lib/supabase'
+import { useState, type FormEvent } from "react";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [accountType, setAccountType] = useState("Professional");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    const full_name = `${firstName} ${lastName}`.trim();
+    setLoading(true);
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name } },
+    });
+    setLoading(false);
+
+    if (signUpError) {
+      setError(signUpError.message);
+      return;
+    }
+
+    setSuccess(true);
+  }
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
@@ -78,7 +114,7 @@ export default function SignUpPage() {
               </p>
             </div>
 
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -91,6 +127,8 @@ export default function SignUpPage() {
                     id="first-name"
                     name="firstName"
                     type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Alex"
                     className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
                   />
@@ -106,6 +144,8 @@ export default function SignUpPage() {
                     id="last-name"
                     name="lastName"
                     type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
                     placeholder="Morgan"
                     className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
                   />
@@ -124,6 +164,8 @@ export default function SignUpPage() {
                   name="email"
                   type="email"
                   autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@company.com"
                   className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
                 />
@@ -142,6 +184,8 @@ export default function SignUpPage() {
                     name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Create a password"
                     className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 pr-16 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
                   />
@@ -168,6 +212,8 @@ export default function SignUpPage() {
                   name="confirmPassword"
                   type="password"
                   autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
                   className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
                 />
@@ -231,11 +277,23 @@ export default function SignUpPage() {
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Sign up
+                {loading ? "Signing up…" : "Sign up"}
               </button>
             </form>
+
+            {success ? (
+              <p className="mt-4 text-center text-sm font-medium text-[#188a66]">
+                Check your email to confirm your account
+              </p>
+            ) : null}
+            {error ? (
+              <p className="mt-4 text-center text-sm font-medium text-red-600" role="alert">
+                {error}
+              </p>
+            ) : null}
 
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-200" />
