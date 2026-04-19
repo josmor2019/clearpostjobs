@@ -1,5 +1,60 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
+type NotificationItem = {
+  id: string;
+  type: "green" | "red" | "yellow" | "blue";
+  message: string;
+  time: string;
+  read: boolean;
+};
+
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: "1",
+    type: "green",
+    message: "Stripe wants to schedule an interview",
+    time: "2 minutes ago",
+    read: false,
+  },
+  {
+    id: "2",
+    type: "red",
+    message: "Your application to Meta was not selected",
+    time: "1 hour ago",
+    read: false,
+  },
+  {
+    id: "3",
+    type: "yellow",
+    message: "You have an interview with Figma in 15 minutes",
+    time: "2 hours ago",
+    read: false,
+  },
+  {
+    id: "4",
+    type: "blue",
+    message: "3 new jobs match your profile",
+    time: "5 hours ago",
+    read: true,
+  },
+  {
+    id: "5",
+    type: "blue",
+    message: "Notion viewed your profile",
+    time: "Yesterday",
+    read: true,
+  },
+];
+
+function dotClass(type: NotificationItem["type"]) {
+  if (type === "green") return "bg-emerald-500";
+  if (type === "red") return "bg-red-500";
+  if (type === "yellow") return "bg-amber-400";
+  return "bg-blue-500";
+}
+
 const RECENT_APPLICATIONS = [
   {
     id: "1",
@@ -104,6 +159,18 @@ function NavItem({ label, active = false }: { label: string; active?: boolean })
 
 export default function DashboardPage() {
   const completionPercent = 70;
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] =
+    useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
+
+  function markAllAsRead() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -139,26 +206,91 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100"
-                aria-label="Notifications"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen((open) => !open)}
+                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100"
+                  aria-label="Notifications"
+                  aria-expanded={notificationsOpen}
+                  aria-haspopup="true"
                 >
-                  <path
-                    d="M15 17H9m9-1V11a6 6 0 10-12 0v5l-2 2h16l-2-2z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                  >
+                    <path
+                      d="M15 17H9m9-1V11a6 6 0 10-12 0v5l-2 2h16l-2-2z"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {notificationsOpen ? (
+                  <div
+                    className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl"
+                    role="dialog"
+                    aria-label="Notifications"
+                  >
+                    <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+                      <h2 className="text-sm font-semibold text-neutral-900">
+                        Notifications
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        className="text-xs font-semibold text-[#1D9E75] hover:text-[#188a66]"
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+                    <ul className="max-h-80 divide-y divide-neutral-100 overflow-y-auto">
+                      {notifications.map((n) => (
+                        <li key={n.id}>
+                          <div
+                            className={`flex gap-3 px-4 py-3 ${
+                              n.read ? "bg-white" : "bg-[#1D9E75]/8"
+                            }`}
+                          >
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass(
+                                n.type,
+                              )}`}
+                              aria-hidden
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-neutral-900">
+                                {n.message}
+                              </p>
+                              <p className="mt-0.5 text-xs text-neutral-500">
+                                {n.time}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="border-t border-neutral-100 px-4 py-3">
+                      <a
+                        href="#"
+                        className="text-sm font-semibold text-[#1D9E75] hover:text-[#188a66]"
+                      >
+                        View all notifications
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
                 AJ
               </div>
