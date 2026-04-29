@@ -4,6 +4,23 @@ import { JobCard } from "@/components/JobCard";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useMemo, useState } from "react";
 
+function computeMatchScore(job: UiJob, userSkills: string, userTitle: string): number {
+  const haystack = `${job.title} ${job.company}`.toLowerCase();
+  const profileText = `${userSkills} ${userTitle}`.toLowerCase();
+  if (!profileText.trim()) return 0;
+
+  const tokens = profileText
+    .split(/[\s,;/|]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 2);
+
+  if (tokens.length === 0) return 0;
+
+  const matches = tokens.filter((t) => haystack.includes(t)).length;
+  const raw = Math.round((matches / tokens.length) * 100);
+  return Math.min(99, Math.max(30, raw + 30));
+}
+
 const JOB_TYPES = ["Full-time", "Part-time", "Contract"];
 const LOCATION_MODES = ["Remote", "On-site", "Hybrid"];
 const EXPERIENCE_LEVELS = ["Entry", "Mid", "Senior", "Staff"];
@@ -88,6 +105,9 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<UiJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [userSkills, setUserSkills] = useState("");
+  const [userTitle, setUserTitle] = useState("");
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   const [jobType, setJobType] = useState("all");
   const [locationMode, setLocationMode] = useState("all");
@@ -103,6 +123,21 @@ export default function JobsPage() {
     async function load() {
       setLoading(true);
       setLoadError(null);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!cancelled && user) {
+        setIsSignedIn(true);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("skills, job_title")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (!cancelled && profile) {
+          setUserSkills(String(profile.skills ?? ""));
+          setUserTitle(String(profile.job_title ?? ""));
+        }
+      }
+
       const { data, error } = await supabase.from("jobs").select("*");
       if (cancelled) return;
       if (error) {
@@ -479,7 +514,11 @@ export default function JobsPage() {
               <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {sorted.map((job) => (
                   <li key={job.id}>
-                    <JobCard job={job} titleTag="h2" />
+                    <JobCard
+                      job={job}
+                      titleTag="h2"
+                      matchScore={isSignedIn ? computeMatchScore(job, userSkills, userTitle) : null}
+                    />
                   </li>
                 ))}
               </ul>

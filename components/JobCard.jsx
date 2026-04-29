@@ -1,15 +1,35 @@
 import { formatPosted, formatSalary } from "@/lib/jobs";
 
-export function JobCard({ job, titleTag = "h2" }) {
+function MatchBadge({ score }) {
+  const color =
+    score >= 80
+      ? "bg-[#1D9E75]/10 text-[#147b5b]"
+      : score >= 60
+        ? "bg-amber-50 text-amber-700"
+        : "bg-neutral-100 text-neutral-500";
+  return (
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${color}`}>
+      {score}% match
+    </span>
+  );
+}
+
+/**
+ * @param {{ job: import("@/app/jobs/page").UiJob, titleTag?: string, matchScore?: number | null }} props
+ */
+export function JobCard({ job, titleTag = "h2", matchScore = null }) {
   const Title = titleTag;
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
-        <span className="shrink-0 rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
-          Verified
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {matchScore != null && <MatchBadge score={matchScore} />}
+          <span className="rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
+            Verified
+          </span>
+        </div>
       </div>
       <Title className="mt-2 text-lg font-semibold leading-snug text-neutral-900">
         {job.title}

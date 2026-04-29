@@ -12,6 +12,13 @@ export default function EmployerSignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function handleGoogleSignIn() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/employer/dashboard` },
+    });
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -170,6 +177,28 @@ export default function EmployerSignInPage() {
                 {error}
               </p>
             ) : null}
+
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-neutral-200" />
+              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                or sign in with
+              </span>
+              <div className="h-px flex-1 bg-neutral-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+            >
+              <span
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-[10px] font-bold text-red-600"
+                aria-hidden
+              >
+                G
+              </span>
+              Continue with Google
+            </button>
 
             <p className="mt-6 text-center text-sm text-neutral-600">
               Don&apos;t have an account?{" "}

@@ -161,8 +161,8 @@ const NAV_LINKS = [
   { label: "Saved Jobs", href: "#" },
   { label: "AI Resume Builder", href: "/dashboard/resume" },
   { label: "AI Cover Letter", href: "/dashboard/cover-letter" },
-  { label: "Profile", href: "#" },
-  { label: "Settings", href: "#" },
+  { label: "Recommendation Letter", href: "/dashboard/recommendation" },
+  { label: "Settings", href: "/dashboard/settings" },
 ] as const;
 
 function NavItem({ label, href, active = false }: { label: string; href: string; active?: boolean }) {

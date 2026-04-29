@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import stripe from "stripe";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,15 @@ type CheckoutBody = {
 export async function POST(request: Request) {
   try {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const rl = rateLimit(`checkout:${ip}`, 10, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many checkout attempts. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rl.remaining, rl.resetAt) },
+      );
+    }
     if (!stripeSecretKey) {
       console.error("[api/checkout] missing STRIPE_SECRET_KEY");
       return NextResponse.json(

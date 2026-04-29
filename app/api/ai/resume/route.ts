@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { sanitizeText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 
@@ -13,25 +15,43 @@ type ResumeRequest = {
   targetRole?: string;
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "AI features not configured." }, { status: 503 });
   }
 
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = rateLimit(`ai:resume:${ip}`, 10, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "AI rate limit reached. Try again in an hour." },
+      { status: 429, headers: rateLimitHeaders(rl.remaining, rl.resetAt) },
+    );
+  }
+
   try {
     const body = (await request.json()) as ResumeRequest;
 
+    const name = sanitizeText(body.name, 100);
+    const email = sanitizeText(body.email, 254);
+    const title = sanitizeText(body.title, 100);
+    const targetRole = sanitizeText(body.targetRole, 100);
+    const summary = sanitizeText(body.summary, 1000);
+    const experience = sanitizeText(body.experience, 3000);
+    const education = sanitizeText(body.education, 1000);
+    const skills = sanitizeText(body.skills, 500);
+
     const prompt = `You are an expert resume writer. Create a polished, ATS-optimized resume in Markdown format for the following person.
 
-Name: ${body.name ?? "Not provided"}
-Email: ${body.email ?? "Not provided"}
-Current/Target Title: ${body.title ?? "Not provided"}
-Target Role: ${body.targetRole ?? body.title ?? "Not provided"}
-Professional Summary: ${body.summary ?? "Not provided"}
-Work Experience: ${body.experience ?? "Not provided"}
-Education: ${body.education ?? "Not provided"}
-Skills: ${body.skills ?? "Not provided"}
+Name: ${name || "Not provided"}
+Email: ${email || "Not provided"}
+Current/Target Title: ${title || "Not provided"}
+Target Role: ${targetRole || title || "Not provided"}
+Professional Summary: ${summary || "Not provided"}
+Work Experience: ${experience || "Not provided"}
+Education: ${education || "Not provided"}
+Skills: ${skills || "Not provided"}
 
 Write a complete, professional resume. Use clear sections: Summary, Experience, Education, Skills. Use action verbs. Be concise and impactful. Format in clean Markdown.`;
 

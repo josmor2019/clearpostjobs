@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Internship = {
   id: string;
@@ -101,7 +102,21 @@ function formatPosted(iso: string) {
   });
 }
 
-function InternshipCard({ internship }: { internship: Internship }) {
+function ConfidenceBadge({ score }: { score: number }) {
+  const color =
+    score >= 80
+      ? "bg-[#1D9E75]/10 text-[#147b5b]"
+      : score >= 60
+        ? "bg-amber-50 text-amber-700"
+        : "bg-neutral-100 text-neutral-500";
+  return (
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${color}`}>
+      {score}% fit
+    </span>
+  );
+}
+
+function InternshipCard({ internship, confidenceScore }: { internship: Internship; confidenceScore?: number }) {
   return (
     <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
@@ -118,9 +133,12 @@ function InternshipCard({ internship }: { internship: Internship }) {
             </p>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
-          Verified
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {confidenceScore != null && <ConfidenceBadge score={confidenceScore} />}
+          <span className="rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
+            Verified
+          </span>
+        </div>
       </div>
 
       <h2 className="mt-3 text-lg font-semibold leading-snug text-neutral-900">
@@ -155,6 +173,14 @@ function InternshipCard({ internship }: { internship: Internship }) {
   );
 }
 
+function computeConfidence(internship: Internship, isStudent: boolean, isEduVerified: boolean): number {
+  let score = 50;
+  if (internship.experience === "Student" && isStudent) score += 20;
+  if (isEduVerified) score += 15;
+  if (internship.experience === "All") score += 10;
+  return Math.min(99, score);
+}
+
 export default function InternshipsPage() {
   const [industry, setIndustry] = useState<string>("all");
   const [location, setLocation] = useState<string>("all");
@@ -162,6 +188,27 @@ export default function InternshipsPage() {
   const [experience, setExperience] = useState<string>("all");
   const [minStipend, setMinStipend] = useState<number>(0);
   const [sortBy, setSortBy] = useState<string>("newest");
+  const [isStudent, setIsStudent] = useState(false);
+  const [isEduVerified, setIsEduVerified] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setIsSignedIn(true);
+      supabase
+        .from("profiles")
+        .select("account_type, edu_verified")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setIsStudent(data.account_type === "student");
+            setIsEduVerified(Boolean(data.edu_verified));
+          }
+        });
+    });
+  }, []);
 
   const sliderMin = 0;
   const sliderMax = 50000;
@@ -446,7 +493,10 @@ export default function InternshipsPage() {
           <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sorted.map((internship) => (
               <li key={internship.id}>
-                <InternshipCard internship={internship} />
+                <InternshipCard
+                  internship={internship}
+                  confidenceScore={isSignedIn ? computeConfidence(internship, isStudent, isEduVerified) : undefined}
+                />
               </li>
             ))}
           </ul>

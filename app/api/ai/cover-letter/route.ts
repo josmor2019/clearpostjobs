@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { sanitizeText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 
@@ -12,24 +14,40 @@ type CoverLetterRequest = {
   tone?: "professional" | "friendly" | "bold";
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "AI features not configured." }, { status: 503 });
+  }
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = rateLimit(`ai:cover:${ip}`, 10, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "AI rate limit reached. Try again in an hour." },
+      { status: 429, headers: rateLimitHeaders(rl.remaining, rl.resetAt) },
+    );
   }
 
   try {
     const body = (await request.json()) as CoverLetterRequest;
     const tone = body.tone ?? "professional";
 
+    const name = sanitizeText(body.name, 100);
+    const email = sanitizeText(body.email, 254);
+    const jobTitle = sanitizeText(body.jobTitle, 100);
+    const company = sanitizeText(body.company, 100);
+    const jobDescription = sanitizeText(body.jobDescription, 2000);
+    const userBackground = sanitizeText(body.userBackground, 2000);
+
     const prompt = `You are an expert cover letter writer. Write a compelling, ${tone} cover letter for the following job application.
 
-Applicant: ${body.name ?? "Applicant"}
-Email: ${body.email ?? ""}
-Job Title: ${body.jobTitle ?? "Not provided"}
-Company: ${body.company ?? "Not provided"}
-Job Description: ${body.jobDescription ?? "Not provided"}
-Applicant Background: ${body.userBackground ?? "Not provided"}
+Applicant: ${name || "Applicant"}
+Email: ${email || ""}
+Job Title: ${jobTitle || "Not provided"}
+Company: ${company || "Not provided"}
+Job Description: ${jobDescription || "Not provided"}
+Applicant Background: ${userBackground || "Not provided"}
 
 Write a 3-4 paragraph cover letter. Opening: grab attention with genuine enthusiasm. Middle: connect skills to the role with specific examples. Closing: confident call to action. Keep it under 350 words. Do not use clichés like "I am writing to express my interest." Format as plain text (no markdown headers).`;
 

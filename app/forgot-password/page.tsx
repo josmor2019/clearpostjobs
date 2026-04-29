@@ -1,5 +1,6 @@
 "use client";
 
+import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
 export default function ForgotPasswordPage() {
@@ -7,6 +8,10 @@ export default function ForgotPasswordPage() {
   const [showCodeStep, setShowCodeStep] = useState(false);
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [secondsLeft, setSecondsLeft] = useState(5 * 60);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!showCodeStep || secondsLeft <= 0) return;
@@ -135,31 +140,66 @@ export default function ForgotPasswordPage() {
             </div>
 
             {activeTab === "email" ? (
-              <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="mb-1.5 block text-sm font-medium text-neutral-700"
+              emailSent ? (
+                <div className="rounded-xl border border-[#1D9E75]/30 bg-[#1D9E75]/5 p-5 text-center">
+                  <p className="font-semibold text-[#147b5b]">Check your email</p>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    We sent a password reset link to <strong>{emailInput}</strong>. It expires in 60 minutes.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setEmailSent(false); setEmailInput(""); }}
+                    className="mt-4 text-sm font-semibold text-[#1D9E75] hover:text-[#188a66]"
                   >
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@company.com"
-                    className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
-                  />
+                    Use a different email
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setEmailError(null);
+                    setEmailLoading(true);
+                    const { error } = await supabase.auth.resetPasswordForEmail(emailInput, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    setEmailLoading(false);
+                    if (error) {
+                      setEmailError(error.message);
+                    } else {
+                      setEmailSent(true);
+                    }
+                  }}
                 >
-                  Send reset link
-                </button>
-              </form>
+                  <div>
+                    <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-neutral-700">
+                      Email
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="you@company.com"
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
+                    />
+                  </div>
+                  {emailError && (
+                    <p className="text-sm font-medium text-red-600" role="alert">{emailError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={emailLoading}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] disabled:opacity-60"
+                  >
+                    {emailLoading ? "Sending…" : "Send reset link"}
+                  </button>
+                </form>
+              )
             ) : (
               <div className="space-y-4">
                 <form

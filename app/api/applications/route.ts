@@ -1,0 +1,132 @@
+import { createClient } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { sanitizeText } from "@/lib/sanitize";
+
+export const runtime = "nodejs";
+
+export async function POST(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) {
+    return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+  }
+
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const supabase = createClient(url, serviceKey);
+
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = rateLimit(`apply:${user.id}:${ip}`, 20, 24 * 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Application limit reached for today." },
+      { status: 429, headers: rateLimitHeaders(rl.remaining, rl.resetAt) },
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_status, subscription_tier")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isFreeTier =
+    !profile || profile.subscription_status !== "active";
+
+  if (isFreeTier) {
+    const { count } = await supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if ((count ?? 0) >= 3) {
+      return NextResponse.json(
+        { error: "Free accounts are limited to 3 applications. Upgrade to Pro for unlimited." },
+        { status: 403 },
+      );
+    }
+  }
+
+  const body = (await request.json()) as {
+    jobId?: string;
+    coverNote?: string;
+    resumeUrl?: string;
+  };
+
+  const jobId = sanitizeText(body.jobId, 100);
+  const coverNote = sanitizeText(body.coverNote, 2000);
+  const resumeUrl = sanitizeText(body.resumeUrl, 500);
+
+  if (!jobId) {
+    return NextResponse.json({ error: "jobId is required." }, { status: 400 });
+  }
+
+  const { data: existing } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("job_id", jobId)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json({ error: "You have already applied to this job." }, { status: 409 });
+  }
+
+  const { data, error } = await supabase.from("applications").insert({
+    user_id: user.id,
+    job_id: jobId,
+    cover_note: coverNote || null,
+    resume_url: resumeUrl || null,
+    status: "applied",
+    applied_at: new Date().toISOString(),
+  }).select("id").single();
+
+  if (error) {
+    console.error("[applications] insert error", error.message);
+    return NextResponse.json({ error: "Failed to submit application." }, { status: 500 });
+  }
+
+  return NextResponse.json({ applicationId: data.id }, { status: 201 });
+}
+
+export async function GET(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) {
+    return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+  }
+
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const supabase = createClient(url, serviceKey);
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from("applications")
+    .select("id, job_id, status, applied_at, cover_note, resume_url")
+    .eq("user_id", user.id)
+    .order("applied_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ applications: data ?? [] });
+}
