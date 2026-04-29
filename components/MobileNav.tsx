@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 
 const NAV_LINKS = [
@@ -87,20 +88,20 @@ export function MobileNav() {
               ))}
             </nav>
             <div className="flex flex-col gap-2 border-t border-neutral-100 px-4 pb-4 pt-3">
-              <a
+              <Link
                 href="/sign-in"
                 onClick={() => setOpen(false)}
                 className="flex items-center justify-center rounded-xl border border-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
               >
                 Sign in
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/sign-up"
                 onClick={() => setOpen(false)}
                 className="flex items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#188a66]"
               >
                 Get started free →
-              </a>
+              </Link>
             </div>
           </div>
         </>
