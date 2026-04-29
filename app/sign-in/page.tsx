@@ -12,11 +12,13 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleGoogleSignIn() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
+  async function handleOAuthSignIn(provider: "google" | "apple" | "azure" | "linkedin_oidc") {
+    setError(null);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+    if (oauthError) setError(oauthError.message);
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -210,7 +212,7 @@ export default function SignInPage() {
             <div className="space-y-3">
               <button
                 type="button"
-                onClick={handleGoogleSignIn}
+                onClick={() => handleOAuthSignIn("google")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -223,6 +225,7 @@ export default function SignInPage() {
               </button>
               <button
                 type="button"
+                onClick={() => handleOAuthSignIn("apple")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -235,6 +238,7 @@ export default function SignInPage() {
               </button>
               <button
                 type="button"
+                onClick={() => handleOAuthSignIn("azure")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -247,6 +251,7 @@ export default function SignInPage() {
               </button>
               <button
                 type="button"
+                onClick={() => handleOAuthSignIn("linkedin_oidc")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
