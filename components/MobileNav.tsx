@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 const NAV_LINKS = [
@@ -12,6 +12,7 @@ const NAV_LINKS = [
 ];
 
 export function MobileNav() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Lock body scroll when menu is open
@@ -88,20 +89,20 @@ export function MobileNav() {
               ))}
             </nav>
             <div className="flex flex-col gap-2 border-t border-neutral-100 px-4 pb-4 pt-3">
-              <Link
-                href="/sign-in"
-                onClick={() => setOpen(false)}
+              <button
+                type="button"
+                onClick={() => { setOpen(false); router.push("/sign-in"); }}
                 className="flex items-center justify-center rounded-xl border border-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
               >
                 Sign in
-              </Link>
-              <Link
-                href="/sign-up"
-                onClick={() => setOpen(false)}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); router.push("/sign-up"); }}
                 className="flex items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#188a66]"
               >
                 Get started free →
-              </Link>
+              </button>
             </div>
           </div>
         </>

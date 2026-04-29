@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavAuthButtons } from "@/components/NavAuthButtons";
 import { JobCard } from "@/components/JobCard";
 import { MobileNav } from "@/components/MobileNav";
 import { JOBS } from "@/lib/jobs";
@@ -77,18 +77,7 @@ export default function Home() {
 
           {/* Right side */}
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/sign-in"
-              className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 sm:inline-flex"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/sign-up"
-              className="hidden rounded-xl bg-[#1D9E75] px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] sm:inline-flex"
-            >
-              Get started →
-            </Link>
+            <NavAuthButtons />
             <MobileNav />
           </div>
         </nav>
