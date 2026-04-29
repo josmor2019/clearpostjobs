@@ -1,3 +1,13 @@
+// SQL migration needed:
+//   CREATE TABLE IF NOT EXISTS flagged_accounts (
+//     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+//     user_id uuid REFERENCES auth.users NOT NULL,
+//     reason text NOT NULL,
+//     flagged_at timestamptz DEFAULT now(),
+//     resolved_at timestamptz,
+//     paused_until timestamptz
+//   );
+
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -31,6 +41,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Application limit reached for today." },
       { status: 429, headers: rateLimitHeaders(rl.remaining, rl.resetAt) },
+    );
+  }
+
+  // Bot detection: more than 10 applications in the last hour → flag account
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await supabase
+    .from("applications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("applied_at", oneHourAgo);
+
+  if ((recentCount ?? 0) >= 10) {
+    // Flag the account for admin review
+    await supabase.from("flagged_accounts").insert({
+      user_id: user.id,
+      reason: `Submitted ${(recentCount ?? 0) + 1} applications within 1 hour (bot detection threshold)`,
+      paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    return NextResponse.json(
+      {
+        error:
+          "Unusual activity detected. Your account has been temporarily paused and flagged for review. Contact support if this was a mistake.",
+      },
+      { status: 429 },
+    );
+  }
+
+  // Check if account is currently paused from a prior bot flag
+  const { data: flag } = await supabase
+    .from("flagged_accounts")
+    .select("paused_until")
+    .eq("user_id", user.id)
+    .is("resolved_at", null)
+    .gt("paused_until", new Date().toISOString())
+    .maybeSingle();
+
+  if (flag) {
+    return NextResponse.json(
+      { error: "Your account is temporarily paused. Contact support for help." },
+      { status: 403 },
     );
   }
 
@@ -73,13 +124,21 @@ export async function POST(request: NextRequest) {
 
   const { data: existing } = await supabase
     .from("applications")
-    .select("id")
+    .select("id, status, applied_at")
     .eq("user_id", user.id)
     .eq("job_id", jobId)
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ error: "You have already applied to this job." }, { status: 409 });
+    return NextResponse.json(
+      {
+        error: "You have already applied to this job.",
+        alreadyApplied: true,
+        appliedAt: existing.applied_at,
+        status: existing.status,
+      },
+      { status: 409 },
+    );
   }
 
   const { data, error } = await supabase.from("applications").insert({
@@ -120,7 +179,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("applications")
-    .select("id, job_id, status, applied_at, cover_note, resume_url")
+    .select("id, job_id, status, applied_at, cover_note, resume_url, withdrawn_at, jobs(title, company)")
     .eq("user_id", user.id)
     .order("applied_at", { ascending: false });
 
@@ -128,5 +187,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ applications: data ?? [] });
+  // Flatten joined job data for easier client consumption
+  const applications = (data ?? []).map((a) => {
+    const job = Array.isArray(a.jobs) ? a.jobs[0] : a.jobs;
+    return { ...a, job: job ?? null, jobs: undefined };
+  });
+
+  return NextResponse.json({ applications });
 }

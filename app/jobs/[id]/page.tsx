@@ -91,6 +91,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [factors, setFactors] = useState<Factor[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [responseStats, setResponseStats] = useState<{
+    responseRate: number;
+    avgDays: number | null;
+    label: string;
+  } | null>(null);
+  const [jobFlagged, setJobFlagged] = useState(false);
+  const [flagReasons, setFlagReasons] = useState<string[]>([]);
 
   useEffect(() => {
     async function init() {
@@ -122,6 +129,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           requirements: [],
           skills: String(raw.required_skills ?? raw.skills ?? ""),
         });
+
+        if (raw.flagged) {
+          setJobFlagged(true);
+          setFlagReasons(Array.isArray(raw.flag_reasons) ? (raw.flag_reasons as string[]) : []);
+        }
+
+        // Fetch employer response stats
+        const employerId = String(raw.employer_id ?? "");
+        if (employerId) {
+          fetch(`/api/employer/response-stats?employerId=${encodeURIComponent(employerId)}`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((data: { responseRate: number; avgDays: number | null; label: string; totalApplications: number } | null) => {
+              if (data && data.totalApplications > 0) setResponseStats(data);
+            })
+            .catch(() => null);
+        }
       }
 
       // Auth + subscription check
@@ -261,9 +284,45 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 <div className="mt-5">
                   <p className="text-2xl font-bold tracking-tight text-[#1D9E75] sm:text-3xl">{job.salary}</p>
                   <p className="mt-1 text-sm text-neutral-500">Posted {job.posted}</p>
+                  {responseStats && (
+                    <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${responseStats.responseRate >= 70 ? "text-[#147b5b] bg-[#1D9E75]/8" : responseStats.responseRate >= 40 ? "text-amber-700 bg-amber-50" : "text-neutral-500 bg-neutral-100"}`}>
+                      <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" aria-hidden>
+                        <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M6 3.5v2.75l1.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                      {responseStats.label}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* Suspicious listing warning */}
+            {jobFlagged && (
+              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <svg viewBox="0 0 20 20" fill="none" className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden>
+                    <path d="M10 2L1.5 17h17L10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <path d="M10 8v4m0 2v1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">This listing is under review</p>
+                    <p className="mt-0.5 text-xs text-amber-700">
+                      Clearpost has flagged this listing for review before it goes fully live. Use caution and never pay fees or share sensitive personal information with employers.
+                    </p>
+                    {flagReasons.length > 0 && (
+                      <ul className="mt-2 space-y-0.5">
+                        {flagReasons.map((r) => (
+                          <li key={r} className="flex items-start gap-1 text-xs text-amber-700">
+                            <span className="font-bold">·</span>{r}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Match panel — mobile */}
             {isSignedIn && matchScore !== null && (

@@ -15,10 +15,22 @@ function MatchBadge({ score }) {
 }
 
 /**
- * @param {{ job: import("@/app/jobs/page").UiJob, titleTag?: string, matchScore?: number | null }} props
+ * @param {{
+ *   job: import("@/app/jobs/page").UiJob,
+ *   titleTag?: string,
+ *   matchScore?: number | null,
+ *   responseStats?: { responseRate: number; avgDays: number | null } | null
+ * }} props
  */
-export function JobCard({ job, titleTag = "h2", matchScore = null }) {
+export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null }) {
   const Title = titleTag;
+
+  const responseBadgeColor =
+    responseStats && responseStats.responseRate >= 70
+      ? "text-[#147b5b] bg-[#1D9E75]/8"
+      : responseStats && responseStats.responseRate >= 40
+        ? "text-amber-700 bg-amber-50"
+        : "text-neutral-500 bg-neutral-100";
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
@@ -46,6 +58,19 @@ export function JobCard({ job, titleTag = "h2", matchScore = null }) {
           {job.locationType}
         </span>
       </div>
+
+      {responseStats != null && (
+        <p className={`mt-3 inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${responseBadgeColor}`}>
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3 shrink-0" aria-hidden>
+            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M6 3.5v2.75l1.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          {responseStats.avgDays != null
+            ? `${responseStats.responseRate}% respond within ${responseStats.avgDays}d`
+            : `${responseStats.responseRate}% response rate`}
+        </p>
+      )}
+
       <p className="mt-4 text-xs text-neutral-400">
         Posted {formatPosted(job.posted)}
       </p>

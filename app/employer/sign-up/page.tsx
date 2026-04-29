@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { useState, type FormEvent } from "react";
+import { extractEmailDomain, domainMatchesCompany } from "@/lib/listing-scanner";
 
 const COMPANY_SIZES = ["1-10", "11-50", "51-200", "200+"] as const;
 
@@ -16,6 +17,7 @@ export default function EmployerSignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [domainWarning, setDomainWarning] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,6 +27,27 @@ export default function EmployerSignUpPage() {
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
+    }
+
+    // Domain verification check: warn if email domain doesn't match company name
+    const emailDomain = extractEmailDomain(email);
+    const FREE_DOMAINS = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
+    const domainVerified =
+      !FREE_DOMAINS.includes(emailDomain) &&
+      domainMatchesCompany(emailDomain, companyName);
+
+    if (!domainVerified) {
+      if (FREE_DOMAINS.includes(emailDomain)) {
+        setDomainWarning(
+          "You are signing up with a personal email address. Your listings will be held for manual verification before going live. For instant approval, use your company email (e.g. you@company.com).",
+        );
+      } else {
+        setDomainWarning(
+          `Your email domain (${emailDomain}) does not appear to match "${companyName}". Your listings will require manual verification before going live.`,
+        );
+      }
+    } else {
+      setDomainWarning(null);
     }
 
     setLoading(true);
@@ -37,6 +60,7 @@ export default function EmployerSignUpPage() {
           company_name: companyName,
           company_size: companySize,
           industry,
+          domain_verified: domainVerified,
         },
       },
     });
@@ -266,6 +290,12 @@ export default function EmployerSignUpPage() {
               </button>
             </form>
 
+            {domainWarning && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-800">Verification required</p>
+                <p className="mt-0.5 text-xs text-amber-700">{domainWarning}</p>
+              </div>
+            )}
             {success ? (
               <p className="mt-4 text-center text-sm font-medium text-[#188a66]">
                 Check your email to confirm your account

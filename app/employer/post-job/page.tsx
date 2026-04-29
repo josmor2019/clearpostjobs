@@ -121,28 +121,47 @@ export default function EmployerPostJobPage() {
 
     setLoading(true);
 
-    const row = {
-      title: title.trim(),
-      description: description.trim(),
-      job_type: jobType,
-      location_type: locationType,
-      location: location.trim(),
-      salary_min: min,
-      salary_max: max,
-      experience,
-      skills: skillsInput,
-      employer_id: current.id,
-      company: companyName,
-      status: "Active",
-      applicants: 0,
-    };
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/employer/sign-in"); return; }
 
-    const { error: insertError } = await supabase.from("jobs").insert(row);
+    const res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        title: title.trim(),
+        description: description.trim(),
+        job_type: jobType,
+        location_type: locationType,
+        location: location.trim(),
+        salary_min: min,
+        salary_max: max,
+        experience,
+        skills: skillsInput,
+        company: companyName,
+      }),
+    });
+
     setLoading(false);
 
-    if (insertError) {
-      setError(insertError.message);
+    const data = (await res.json()) as {
+      jobId?: string;
+      status?: string;
+      flagged?: boolean;
+      message?: string;
+      error?: string;
+    };
+
+    if (!res.ok) {
+      setError(data.error ?? "Failed to post job.");
       return;
+    }
+
+    if (data.flagged) {
+      setError(data.message ?? "Your listing is under review.");
+      // Still redirect — listing was created, just held for review
     }
 
     router.push("/employer/dashboard");
