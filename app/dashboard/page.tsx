@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { SkeletonBox, SkeletonStatCard, SkeletonTableRow } from "@/components/Skeleton";
 
 type NotificationItem = {
   id: string;
@@ -156,25 +157,47 @@ function headerAvatarInitials(label: string) {
 }
 
 const NAV_LINKS = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "My Applications", href: "#" },
-  { label: "Saved Jobs", href: "#" },
-  { label: "AI Resume Builder", href: "/dashboard/resume" },
-  { label: "AI Cover Letter", href: "/dashboard/cover-letter" },
-  { label: "Recommendation Letter", href: "/dashboard/recommendation" },
-  { label: "Settings", href: "/dashboard/settings" },
+  {
+    label: "Dashboard", href: "/dashboard",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="2" y="12" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="12" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><rect x="12" y="12" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" /></svg>,
+  },
+  {
+    label: "My Applications", href: "/dashboard/applications",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><path d="M4 4h12v12H4V4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M8 9h4M8 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  },
+  {
+    label: "Saved Jobs", href: "#",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><path d="M5 3h10v14l-5-2.5L5 17V3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  },
+  {
+    label: "Resume co-pilot", href: "/dashboard/resume",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><path d="M4 2h12a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" /><path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  },
+  {
+    label: "Cover letter", href: "/dashboard/cover-letter",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5z" stroke="currentColor" strokeWidth="1.5" /><path d="M3 8l7 4.5L17 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  },
+  {
+    label: "Salary coach", href: "/dashboard/salary-coach",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" /><path d="M10 7v1.5a1.5 1.5 0 000 3v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><path d="M8 7.5h2.5M8.5 13.5H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  },
+  {
+    label: "Settings", href: "/dashboard/settings",
+    icon: <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden><circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" /><path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5.05 5.05l1.06 1.06M13.89 13.89l1.06 1.06M5.05 14.95l1.06-1.06M13.89 6.11l1.06-1.06" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  },
 ] as const;
 
-function NavItem({ label, href, active = false }: { label: string; href: string; active?: boolean }) {
+function NavItem({ label, href, icon, active = false }: { label: string; href: string; icon: React.ReactNode; active?: boolean }) {
   return (
     <a
       href={href}
-      className={`inline-flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      className={`inline-flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
         active
           ? "bg-[#1D9E75]/10 text-[#188a66]"
-          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+          : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
       }`}
     >
+      <span className={active ? "text-[#1D9E75]" : "text-neutral-400"}>{icon}</span>
       {label}
     </a>
   );
@@ -183,6 +206,7 @@ function NavItem({ label, href, active = false }: { label: string; href: string;
 export default function DashboardPage() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
+  const [authLoaded, setAuthLoaded] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
@@ -216,6 +240,7 @@ export default function DashboardPage() {
       const fullName = `${first} ${last}`.trim();
       const email = user.email ?? "";
       setDisplayName(fullName || email);
+      setAuthLoaded(true);
     }
 
     void load();
@@ -243,9 +268,9 @@ export default function DashboardPage() {
           </span>
         </a>
 
-        <nav className="space-y-1">
-          {NAV_LINKS.map(({ label, href }) => (
-            <NavItem key={label} label={label} href={href} active={label === "Dashboard"} />
+        <nav className="space-y-0.5">
+          {NAV_LINKS.map(({ label, href, icon }) => (
+            <NavItem key={label} label={label} href={href} icon={icon} active={label === "Dashboard"} />
           ))}
           <button
             type="button"
@@ -359,9 +384,11 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <section aria-label="Stats row" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
+            {!authLoaded ? (
+              Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
+            ) : [
               { label: "Jobs Applied", value: "12", icon: "briefcase" },
               { label: "Saved Jobs", value: "8", icon: "bookmark" },
               { label: "Profile Views", value: "34", icon: "eye" },
@@ -369,7 +396,7 @@ export default function DashboardPage() {
             ].map((stat) => (
               <article
                 key={stat.label}
-                className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -451,13 +478,18 @@ export default function DashboardPage() {
           </section>
 
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">Application Status</h2>
-              <p className="text-sm text-neutral-500">Your 5 most recent applications</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-neutral-900">Recent applications</h2>
+                <p className="text-sm text-neutral-500">Your 5 most recent applications</p>
+              </div>
+              <a href="/dashboard/applications" className="text-sm font-semibold text-[#1D9E75] hover:text-[#147b5b]">
+                View all →
+              </a>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200 text-left">
-                <thead className="bg-neutral-50">
+              <table className="min-w-full divide-y divide-neutral-100 text-left">
+                <thead>
                   <tr>
                     <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
                       Company
@@ -474,8 +506,10 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {RECENT_APPLICATIONS.map((application) => (
-                    <tr key={application.id}>
+                  {!authLoaded
+                    ? Array.from({ length: 4 }).map((_, i) => <SkeletonTableRow key={i} />)
+                    : RECENT_APPLICATIONS.map((application) => (
+                    <tr key={application.id} className="transition-colors hover:bg-neutral-50/50" >
                       <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-neutral-900">
                         {application.company}
                       </td>
@@ -498,6 +532,7 @@ export default function DashboardPage() {
               </table>
             </div>
           </section>
+
 
           <section className="grid gap-6 xl:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm xl:col-span-2">

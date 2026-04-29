@@ -1,6 +1,7 @@
 "use client";
 
 import { JobCard } from "@/components/JobCard";
+import { SkeletonJobCard } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useMemo, useState } from "react";
 
@@ -470,30 +471,52 @@ export default function JobsPage() {
 
           <div className="order-1 min-w-0 flex-1 lg:order-2">
             {loading ? (
-              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
-                <p className="text-lg font-semibold text-neutral-900">Loading jobs…</p>
-                <p className="mt-2 text-sm text-neutral-600">Fetching listings from the server.</p>
-              </div>
+              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading jobs">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <li key={i}><SkeletonJobCard /></li>
+                ))}
+              </ul>
             ) : loadError ? (
-              <div className="rounded-2xl border border-dashed border-red-200 bg-red-50/40 px-6 py-16 text-center">
-                <p className="text-lg font-semibold text-neutral-900">Could not load jobs</p>
-                <p className="mt-2 text-sm text-neutral-600">{loadError}</p>
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/40 px-6 py-16 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-500">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden>
+                    <path d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <p className="mt-4 text-base font-semibold text-neutral-900">Could not load jobs</p>
+                <p className="mt-1 max-w-xs text-sm text-neutral-500">{loadError}</p>
+                <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-[#1D9E75] px-5 py-2 text-sm font-semibold text-white hover:bg-[#188a66]">
+                  Try again
+                </button>
               </div>
             ) : showEmptyTable ? (
-              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
-                <p className="text-lg font-semibold text-neutral-900">No jobs found</p>
-                <p className="mt-2 text-sm text-neutral-600">
-                  There are no listings in the database yet. Check back soon.
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white px-6 py-16 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1D9E75]/10 text-[#1D9E75]">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden>
+                    <rect x="2" y="7" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <p className="mt-4 text-base font-semibold text-neutral-900">No jobs posted yet</p>
+                <p className="mt-1 max-w-xs text-sm text-neutral-500">
+                  New verified listings land here. Check back soon.
                 </p>
+                <a href="/" className="mt-5 rounded-xl border border-neutral-200 px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
+                  Back to home
+                </a>
               </div>
             ) : showEmptyFromFilters ? (
-              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
-                <p className="text-lg font-semibold text-neutral-900">
-                  No jobs match these filters
-                </p>
-                <p className="mt-2 text-sm text-neutral-600">
-                  Try different search terms, widening salary range, or clearing
-                  filters.
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white px-6 py-16 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1D9E75]/10 text-[#1D9E75]">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden>
+                    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M8 11h6M11 8v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <p className="mt-4 text-base font-semibold text-neutral-900">No jobs match these filters</p>
+                <p className="mt-1 max-w-xs text-sm text-neutral-500">
+                  Try different keywords, widen the salary range, or clear all filters.
                 </p>
                 <button
                   type="button"
@@ -505,13 +528,13 @@ export default function JobsPage() {
                     setSearchKeywords("");
                     setSearchLocation("");
                   }}
-                  className="mt-6 inline-flex rounded-xl bg-[#1D9E75] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#188a66]"
+                  className="mt-5 rounded-xl bg-[#1D9E75] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#188a66]"
                 >
-                  Clear filters
+                  Clear all filters
                 </button>
               </div>
             ) : (
-              <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {sorted.map((job) => (
                   <li key={job.id}>
                     <JobCard

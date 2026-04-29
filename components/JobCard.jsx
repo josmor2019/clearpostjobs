@@ -1,14 +1,38 @@
 import { formatPosted, formatSalary } from "@/lib/jobs";
 
+// Deterministic color per company name
+const LOGO_COLORS = [
+  "bg-violet-100 text-violet-700",
+  "bg-blue-100 text-blue-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-orange-100 text-orange-700",
+  "bg-cyan-100 text-cyan-700",
+];
+
+function hashCompany(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return LOGO_COLORS[h % LOGO_COLORS.length];
+}
+
+function initials(name) {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 function MatchBadge({ score }) {
-  const color =
+  const colorClass =
     score >= 80
-      ? "bg-[#1D9E75]/10 text-[#147b5b]"
+      ? "bg-[#1D9E75]/10 text-[#147b5b] ring-[#1D9E75]/20"
       : score >= 60
-        ? "bg-amber-50 text-amber-700"
-        : "bg-neutral-100 text-neutral-500";
+        ? "bg-amber-50 text-amber-700 ring-amber-200/60"
+        : "bg-neutral-100 text-neutral-500 ring-neutral-200/60";
   return (
-    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${color}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ring-1 ${colorClass}`}>
       {score}% match
     </span>
   );
@@ -24,43 +48,63 @@ function MatchBadge({ score }) {
  */
 export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null }) {
   const Title = titleTag;
-
-  const responseBadgeColor =
-    responseStats && responseStats.responseRate >= 70
-      ? "text-[#147b5b] bg-[#1D9E75]/8"
-      : responseStats && responseStats.responseRate >= 40
-        ? "text-amber-700 bg-amber-50"
-        : "text-neutral-500 bg-neutral-100";
+  const logoColor = hashCompany(job.company);
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
-        <div className="flex shrink-0 items-center gap-1.5">
+    <article className="group flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-all duration-150 hover:border-neutral-300 hover:shadow-md">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Company logo placeholder */}
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-bold tracking-wide ${logoColor}`}>
+            {initials(job.company)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-neutral-800">{job.company}</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-neutral-400">
+              <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3 shrink-0" aria-hidden>
+                <path d="M6 1a3.5 3.5 0 010 7 3.5 3.5 0 010-7zM6 11c-2.5 0-4.5-.7-4.5-1.5S3.5 8 6 8s4.5.7 4.5 1.5S8.5 11 6 11z" fill="currentColor" />
+              </svg>
+              {job.location}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           {matchScore != null && <MatchBadge score={matchScore} />}
-          <span className="rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
+          <span className="rounded-full bg-[#1D9E75]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#188a66]">
             Verified
           </span>
         </div>
       </div>
-      <Title className="mt-2 text-lg font-semibold leading-snug text-neutral-900">
+
+      {/* Title */}
+      <Title className="mt-3 text-[15px] font-semibold leading-snug text-neutral-900 group-hover:text-[#1D9E75] transition-colors">
         {job.title}
       </Title>
-      <p className="mt-2 text-sm text-neutral-600">{job.location}</p>
-      <p className="mt-3 text-base font-semibold text-[#1D9E75]">
+
+      {/* Salary — the key differentiator */}
+      <p className="mt-2 text-base font-bold text-[#1D9E75]">
         {formatSalary(job.salaryMin, job.salaryMax)}
       </p>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-700">
+
+      {/* Tags */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
           {job.jobType}
         </span>
-        <span className="inline-flex rounded-lg border border-neutral-100 bg-white px-2.5 py-1 text-xs text-neutral-500">
+        <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
           {job.locationType}
         </span>
+        {job.experience && (
+          <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+            {job.experience}
+          </span>
+        )}
       </div>
 
+      {/* Response rate */}
       {responseStats != null && (
-        <p className={`mt-3 inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${responseBadgeColor}`}>
+        <p className={`mt-2.5 inline-flex w-fit items-center gap-1 text-[11px] font-medium ${responseStats.responseRate >= 70 ? "text-[#147b5b]" : responseStats.responseRate >= 40 ? "text-amber-700" : "text-neutral-400"}`}>
           <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3 shrink-0" aria-hidden>
             <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
             <path d="M6 3.5v2.75l1.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -71,15 +115,16 @@ export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats
         </p>
       )}
 
-      <p className="mt-4 text-xs text-neutral-400">
-        Posted {formatPosted(job.posted)}
-      </p>
-      <div className="mt-auto flex pt-5">
+      {/* Footer */}
+      <div className="mt-auto pt-4 flex items-center justify-between gap-3">
+        <span className="text-[11px] text-neutral-400">
+          {formatPosted(job.posted)}
+        </span>
         <button
           type="button"
-          className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
+          className="rounded-xl bg-[#1D9E75] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] active:scale-95"
         >
-          Apply
+          Apply now
         </button>
       </div>
     </article>
