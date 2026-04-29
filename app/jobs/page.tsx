@@ -104,6 +104,7 @@ function jobMatchesSearch(job: UiJob, keywordRaw: string, locationRaw: string) {
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<UiJob[]>([]);
+  const [appCounts, setAppCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [userSkills, setUserSkills] = useState("");
@@ -145,7 +146,15 @@ export default function JobsPage() {
         setLoadError(error.message);
         setJobs([]);
       } else {
-        setJobs((data ?? []).map((row) => normalizeJob(row as Record<string, unknown>)));
+        const loaded = (data ?? []).map((row) => normalizeJob(row as Record<string, unknown>));
+        setJobs(loaded);
+        if (loaded.length > 0) {
+          const ids = loaded.map((j) => j.id).join(",");
+          fetch(`/api/jobs/applicant-count?jobIds=${encodeURIComponent(ids)}`)
+            .then((r) => r.ok ? r.json() : {})
+            .then((counts: Record<string, number>) => { if (!cancelled) setAppCounts(counts); })
+            .catch(() => {});
+        }
       }
       setLoading(false);
     }
@@ -541,6 +550,7 @@ export default function JobsPage() {
                       job={job}
                       titleTag="h2"
                       matchScore={isSignedIn ? computeMatchScore(job, userSkills, userTitle) : null}
+                      applicantCount={appCounts[job.id] ?? null}
                     />
                   </li>
                 ))}

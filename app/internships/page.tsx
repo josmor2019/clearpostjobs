@@ -102,17 +102,28 @@ function formatPosted(iso: string) {
   });
 }
 
-function ConfidenceBadge({ score }: { score: number }) {
-  const color =
-    score >= 80
-      ? "bg-[#1D9E75]/10 text-[#147b5b]"
-      : score >= 60
-        ? "bg-amber-50 text-amber-700"
-        : "bg-neutral-100 text-neutral-500";
+function ConfidenceGauge({ score }: { score: number }) {
+  const r = 18;
+  const circ = Math.PI * r;
+  const dash = (score / 100) * circ;
+  const color = score >= 80 ? "#1D9E75" : score >= 60 ? "#d97706" : "#ef4444";
   return (
-    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${color}`}>
-      {score}% fit
-    </span>
+    <div className="flex shrink-0 flex-col items-center">
+      <svg width="48" height="28" viewBox="0 0 48 28" aria-hidden>
+        <path d="M 6 24 A 18 18 0 0 1 42 24" fill="none" stroke="#e5e7eb" strokeWidth="4" strokeLinecap="round" />
+        <path
+          d="M 6 24 A 18 18 0 0 1 42 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circ}`}
+        />
+      </svg>
+      <span className="mt-0.5 text-[10px] font-bold tabular-nums leading-none" style={{ color }}>
+        {score}% fit
+      </span>
+    </div>
   );
 }
 
@@ -134,7 +145,7 @@ function InternshipCard({ internship, confidenceScore }: { internship: Internshi
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {confidenceScore != null && <ConfidenceBadge score={confidenceScore} />}
+          {confidenceScore != null && <ConfidenceGauge score={confidenceScore} />}
           <span className="rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-[#188a66]">
             Verified
           </span>

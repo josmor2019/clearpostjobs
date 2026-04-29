@@ -207,6 +207,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [momentum, setMomentum] = useState<{ thisWeek: number; lastWeek: number } | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
@@ -241,6 +242,18 @@ export default function DashboardPage() {
       const email = user.email ?? "";
       setDisplayName(fullName || email);
       setAuthLoaded(true);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && !cancelled) {
+        fetch("/api/applications/momentum", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data: { thisWeek: number; lastWeek: number } | null) => {
+            if (!cancelled && data) setMomentum(data);
+          })
+          .catch(() => {});
+      }
     }
 
     void load();
@@ -476,6 +489,42 @@ export default function DashboardPage() {
               </article>
             ))}
           </section>
+
+          {momentum !== null && (() => {
+            const max = Math.max(momentum.thisWeek, momentum.lastWeek, 1);
+            const diff = momentum.thisWeek - momentum.lastWeek;
+            const pct = momentum.lastWeek === 0
+              ? momentum.thisWeek > 0 ? 100 : 0
+              : Math.round((diff / momentum.lastWeek) * 100);
+            const isUp = diff >= 0;
+            return (
+              <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm" aria-label="Application momentum">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-neutral-900">Application Momentum</h2>
+                    <p className="text-sm text-neutral-500">This week vs last week</p>
+                  </div>
+                  {diff !== 0 && (
+                    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-bold ${isUp ? "bg-[#1D9E75]/10 text-[#147b5b]" : "bg-red-50 text-red-600"}`}>
+                      {isUp ? "↑" : "↓"} {Math.abs(pct)}%
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 flex items-end gap-6">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">This week</p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums text-neutral-900">{momentum.thisWeek}</p>
+                    <div className="mt-2 h-2 rounded-full bg-[#1D9E75]" style={{ width: `${(momentum.thisWeek / max) * 100}%` }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Last week</p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums text-neutral-400">{momentum.lastWeek}</p>
+                    <div className="mt-2 h-2 rounded-full bg-neutral-200" style={{ width: `${(momentum.lastWeek / max) * 100}%` }} />
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
 
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">

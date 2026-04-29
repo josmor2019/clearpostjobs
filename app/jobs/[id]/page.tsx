@@ -88,6 +88,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [isPro, setIsPro] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [matchScore, setMatchScore] = useState<number | null>(null);
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const [userSalary, setUserSalary] = useState<number | null>(null);
   const [factors, setFactors] = useState<Factor[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
@@ -154,7 +156,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_status, subscription_tier, skills, job_title, location")
+        .select("subscription_status, subscription_tier, skills, job_title, location, salary_expectation")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -163,6 +165,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         profile?.subscription_status === "active" &&
         (tier === "pro" || tier === "student_pro");
       setIsPro(isProUser);
+      setUserSalary(profile?.salary_expectation ? Number(profile.salary_expectation) : null);
 
       const targetJob = jobRow ? job : FALLBACK_JOB;
       const userSkills = String(profile?.skills ?? "");
@@ -194,6 +197,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (matchScore === null) return;
+    const start = performance.now();
+    const target = matchScore;
+    function tick(now: number) {
+      const t = Math.min((now - start) / 900, 1);
+      setAnimatedScore(Math.round(target * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }, [matchScore]);
 
   async function handleShowBreakdown() {
     if (!isPro) {
@@ -414,6 +429,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Salary</p>
                   <p className="mt-1 text-lg font-bold text-[#1D9E75]">{job.salary}</p>
                 </div>
+                <SalaryRangeBar min={job.salaryMin} max={job.salaryMax} userSalary={userSalary} />
 
                 <ul className="mt-5 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Job highlights</p>
@@ -435,7 +451,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               {isSignedIn && matchScore !== null && (
                 <div className="hidden lg:block">
                   <MatchPanel
-                    score={matchScore}
+                    score={animatedScore}
                     isPro={isPro}
                     factors={factors}
                     showBreakdown={showBreakdown}
@@ -443,6 +459,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     onToggleBreakdown={() => void handleShowBreakdown()}
                   />
                 </div>
+              )}
+
+              {responseStats && (
+                <EmployerTrustCard stats={responseStats} />
               )}
 
               {!isSignedIn && (
@@ -554,6 +574,69 @@ function MatchPanel({
   );
 }
 
-function _ScoreRingDuplicate({ score }: { score: number }) {
-  void score;
+function SalaryRangeBar({ min, max, userSalary }: { min: number; max: number; userSalary: number | null }) {
+  if (!min || !max || min >= max) return null;
+  const pct = userSalary != null ? Math.min(100, Math.max(0, ((userSalary - min) / (max - min)) * 100)) : null;
+  const fmt = (n: number) => `$${Math.round(n / 1000)}k`;
+  const placement = pct == null ? null : pct < 33 ? "lower end" : pct > 67 ? "upper end" : "mid range";
+  const inRange = userSalary != null && userSalary >= min && userSalary <= max;
+  return (
+    <div className="mt-4 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Salary range</p>
+      <div className="relative h-2 overflow-visible rounded-full bg-neutral-200">
+        <div className="absolute inset-y-0 left-0 right-0 rounded-full bg-gradient-to-r from-[#1D9E75]/30 to-[#1D9E75]" />
+        {pct != null && (
+          <div
+            className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#1D9E75] bg-white shadow"
+            style={{ left: `${pct}%` }}
+            title={`Your salary: ${fmt(userSalary!)}`}
+          />
+        )}
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] text-neutral-400">
+        <span>{fmt(min)}</span>
+        <span>{fmt(max)}</span>
+      </div>
+      {pct != null && (
+        <p className="mt-1 text-center text-[11px] text-neutral-500">
+          Your {fmt(userSalary!)} — {inRange ? placement : userSalary! < min ? "below range" : "above range"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EmployerTrustCard({ stats }: { stats: { responseRate: number; avgDays: number | null } }) {
+  const tier = stats.responseRate >= 70 ? "high" : stats.responseRate >= 40 ? "medium" : "low";
+  const color = tier === "high" ? "text-[#147b5b]" : tier === "medium" ? "text-amber-700" : "text-neutral-500";
+  const bg = tier === "high" ? "bg-[#1D9E75]/8" : tier === "medium" ? "bg-amber-50" : "bg-neutral-100";
+  const dot = tier === "high" ? "bg-[#1D9E75]" : tier === "medium" ? "bg-amber-400" : "bg-neutral-400";
+  const bar = tier === "high" ? "bg-[#1D9E75]" : tier === "medium" ? "bg-amber-400" : "bg-neutral-300";
+  const label = tier === "high" ? "Highly responsive" : tier === "medium" ? "Moderately responsive" : "Low response rate";
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Employer reputation</p>
+      <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${color} ${bg}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
+        {label}
+      </div>
+      <div className="mt-4 space-y-3">
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs font-medium text-neutral-600">
+            <span>Response rate</span>
+            <span className={color}>{stats.responseRate}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+            <div className={`h-1.5 rounded-full transition-all duration-700 ${bar}`} style={{ width: `${stats.responseRate}%` }} />
+          </div>
+        </div>
+        {stats.avgDays != null && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Avg. time to respond</span>
+            <span className="font-semibold text-neutral-800">{stats.avgDays}d</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

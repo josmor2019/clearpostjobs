@@ -43,10 +43,11 @@ function MatchBadge({ score }) {
  *   job: import("@/app/jobs/page").UiJob,
  *   titleTag?: string,
  *   matchScore?: number | null,
- *   responseStats?: { responseRate: number; avgDays: number | null } | null
+ *   responseStats?: { responseRate: number; avgDays: number | null } | null,
+ *   applicantCount?: number | null
  * }} props
  */
-export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null }) {
+export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null, applicantCount = null }) {
   const Title = titleTag;
   const logoColor = hashCompany(job.company);
 
@@ -101,6 +102,18 @@ export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats
           </span>
         )}
       </div>
+
+      {/* Live applicant count */}
+      {applicantCount != null && applicantCount > 0 && (
+        <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-orange-600">
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3 shrink-0" aria-hidden>
+            <path d="M6 1.5C6 1.5 4 3 4 4.5a2 2 0 104 0C8 3 6 1.5 6 1.5z" fill="currentColor" />
+            <path d="M2.5 8C1.7 8.2 1 8.6 1 9s.9 1 2 1M9.5 8c.8.2 1.5.6 1.5 1s-.9 1-2 1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <path d="M4 7.5C2.8 8 2 8.4 2 9s1.3 1 4 1 4-.4 4-1-1.2-1-2-1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+          </svg>
+          {applicantCount} applied in 24h
+        </p>
+      )}
 
       {/* Response rate */}
       {responseStats != null && (
