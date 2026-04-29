@@ -1,6 +1,6 @@
 "use client";
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from "@/lib/supabase";
 import { useState, type FormEvent } from "react";
 
 export default function SignUpPage() {
@@ -374,4 +374,5 @@ export default function SignUpPage() {
     </div>
   );
 }
+
 

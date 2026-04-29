@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 type NotificationItem = {
   id: string;
@@ -142,10 +144,31 @@ function statusClasses(status: string) {
   return "bg-red-100 text-red-700";
 }
 
-function NavItem({ label, active = false }: { label: string; active?: boolean }) {
+function headerAvatarInitials(label: string) {
+  const t = label.trim();
+  if (!t) return "…";
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
+  }
+  if (t.length >= 2) return t.slice(0, 2).toUpperCase();
+  return `${t[0]!}${t[0]!}`.toUpperCase();
+}
+
+const NAV_LINKS = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "My Applications", href: "#" },
+  { label: "Saved Jobs", href: "#" },
+  { label: "AI Resume Builder", href: "/dashboard/resume" },
+  { label: "AI Cover Letter", href: "/dashboard/cover-letter" },
+  { label: "Profile", href: "#" },
+  { label: "Settings", href: "#" },
+] as const;
+
+function NavItem({ label, href, active = false }: { label: string; href: string; active?: boolean }) {
   return (
     <a
-      href="#"
+      href={href}
       className={`inline-flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
         active
           ? "bg-[#1D9E75]/10 text-[#188a66]"
@@ -158,15 +181,51 @@ function NavItem({ label, active = false }: { label: string; active?: boolean })
 }
 
 export default function DashboardPage() {
-  const completionPercent = 70;
+  const router = useRouter();
+  const [displayName, setDisplayName] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
-  const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications],
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (userError || !user) {
+        router.replace("/sign-in");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      const first = profile?.first_name ?? "";
+      const last = profile?.last_name ?? "";
+      const fullName = `${first} ${last}`.trim();
+      const email = user.email ?? "";
+      setDisplayName(fullName || email);
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const completionPercent = 70;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   function markAllAsRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -185,13 +244,16 @@ export default function DashboardPage() {
         </a>
 
         <nav className="space-y-1">
-          <NavItem label="Dashboard" active />
-          <NavItem label="My Applications" />
-          <NavItem label="Saved Jobs" />
-          <NavItem label="Profile" />
-          <NavItem label="Resume" />
-          <NavItem label="Settings" />
-          <NavItem label="Sign out" />
+          {NAV_LINKS.map(({ label, href }) => (
+            <NavItem key={label} label={label} href={href} active={label === "Dashboard"} />
+          ))}
+          <button
+            type="button"
+            onClick={() => void supabase.auth.signOut().then(() => router.replace("/sign-in"))}
+            className="inline-flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+          >
+            Sign out
+          </button>
         </nav>
       </aside>
 
@@ -199,9 +261,8 @@ export default function DashboardPage() {
         <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
             <div>
-              <p className="text-sm text-neutral-500">Welcome back</p>
               <h1 className="text-lg font-semibold tracking-tight text-neutral-900">
-                Alex Johnson
+                Welcome back, {displayName || "…"}
               </h1>
             </div>
 
@@ -292,7 +353,7 @@ export default function DashboardPage() {
                 ) : null}
               </div>
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
-                AJ
+                {headerAvatarInitials(displayName)}
               </div>
             </div>
           </div>
@@ -448,19 +509,28 @@ export default function DashboardPage() {
                 {RECOMMENDED_JOBS.map((job) => (
                   <li key={job.id}>
                     <article className="flex h-full flex-col rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm">
-                      <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
+                        <span className="shrink-0 inline-flex items-center rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold text-[#188a66]">
+                          {job.match}
+                        </span>
+                      </div>
                       <h3 className="mt-2 text-base font-semibold leading-snug text-neutral-900">
                         {job.title}
                       </h3>
                       <p className="mt-2 text-sm font-semibold text-[#1D9E75]">{job.salary}</p>
                       <p className="mt-1 text-sm text-neutral-600">{job.location}</p>
-                      <p className="mt-3 text-xs font-bold uppercase tracking-wide text-[#188a66]">
-                        {job.match}
-                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <a href="/jobs" className="inline-flex rounded-lg bg-[#1D9E75] px-3 py-1 text-xs font-semibold text-white hover:bg-[#188a66]">Apply</a>
+                        <button type="button" className="inline-flex rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Save</button>
+                      </div>
                     </article>
                   </li>
                 ))}
               </ul>
+              <div className="mt-4 text-center">
+                <a href="/jobs" className="text-sm font-semibold text-[#1D9E75] hover:text-[#188a66]">Browse all verified jobs →</a>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">

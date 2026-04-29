@@ -1,30 +1,135 @@
 "use client";
 
 import { JobCard } from "@/components/JobCard";
-import { JOBS } from "@/lib/jobs";
-import { useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useEffect, useMemo, useState } from "react";
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract"];
 const LOCATION_MODES = ["Remote", "On-site", "Hybrid"];
 const EXPERIENCE_LEVELS = ["Entry", "Mid", "Senior", "Staff"];
 
+export type UiJob = {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  locationType: string;
+  salaryMin: number;
+  salaryMax: number;
+  jobType: string;
+  experience: string;
+  posted: string;
+};
+
+function inferLocationType(location: string): string {
+  const l = location.toLowerCase();
+  if (l.includes("remote")) return "Remote";
+  if (l.includes("hybrid")) return "Hybrid";
+  return "On-site";
+}
+
+function postedDateString(row: Record<string, unknown>): string {
+  const v =
+    row.posted_at ?? row.posted ?? row.posted_date ?? row.created_at ?? null;
+  if (v == null) return new Date().toISOString().slice(0, 10);
+  if (typeof v === "string") {
+    return v.includes("T") ? v.slice(0, 10) : v.slice(0, 10);
+  }
+  try {
+    return new Date(v as string | number).toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function normalizeJob(row: Record<string, unknown>): UiJob {
+  const location = String(row.location ?? "");
+  const locationTypeRaw = row.location_type ?? row.locationType;
+  const locationType =
+    typeof locationTypeRaw === "string" && locationTypeRaw.trim() !== ""
+      ? locationTypeRaw
+      : inferLocationType(location);
+
+  const expRaw = row.experience;
+  const experience =
+    typeof expRaw === "string" && expRaw.trim() !== "" ? expRaw : "Mid";
+
+  return {
+    id: String(row.id ?? ""),
+    title: String(row.title ?? ""),
+    company: String(row.company ?? ""),
+    location,
+    locationType,
+    salaryMin: Number(row.salary_min ?? row.salaryMin ?? 0),
+    salaryMax: Number(row.salary_max ?? row.salaryMax ?? 0),
+    jobType: String(row.job_type ?? row.jobType ?? "Full-time"),
+    experience,
+    posted: postedDateString(row),
+  };
+}
+
+function jobMatchesSearch(job: UiJob, keywordRaw: string, locationRaw: string) {
+  const keyword = keywordRaw.trim().toLowerCase();
+  const loc = locationRaw.trim().toLowerCase();
+  if (keyword) {
+    const haystack = `${job.title} ${job.company}`.toLowerCase();
+    const tokens = keyword.split(/\s+/).filter(Boolean);
+    const keywordOk = tokens.every((t) => haystack.includes(t));
+    if (!keywordOk) return false;
+  }
+  if (loc) {
+    const locationHaystack = `${job.location} ${job.locationType}`.toLowerCase();
+    if (!locationHaystack.includes(loc)) return false;
+  }
+  return true;
+}
+
 export default function JobsPage() {
+  const [jobs, setJobs] = useState<UiJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [jobType, setJobType] = useState("all");
   const [locationMode, setLocationMode] = useState("all");
   const [minSalary, setMinSalary] = useState(120000);
   const [experience, setExperience] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [searchKeywords, setSearchKeywords] = useState("");
+  const [searchLocation, setSearchLocation] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      const { data, error } = await supabase.from("jobs").select("*");
+      if (cancelled) return;
+      if (error) {
+        setLoadError(error.message);
+        setJobs([]);
+      } else {
+        setJobs((data ?? []).map((row) => normalizeJob(row as Record<string, unknown>)));
+      }
+      setLoading(false);
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
-    return JOBS.filter((j) => {
+    return jobs.filter((j) => {
+      if (!jobMatchesSearch(j, searchKeywords, searchLocation)) return false;
       if (jobType !== "all" && j.jobType !== jobType) return false;
-      if (locationMode !== "all" && j.locationType !== locationMode)
-        return false;
+      if (locationMode !== "all" && j.locationType !== locationMode) return false;
       if (experience !== "all" && j.experience !== experience) return false;
       if (j.salaryMax < minSalary) return false;
       return true;
     });
-  }, [jobType, locationMode, minSalary, experience]);
+  }, [jobs, jobType, locationMode, minSalary, experience, searchKeywords, searchLocation]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -42,6 +147,9 @@ export default function JobsPage() {
 
   const sliderMax = 350000;
   const sliderMin = 80000;
+
+  const showEmptyFromFilters = !loading && !loadError && jobs.length > 0 && sorted.length === 0;
+  const showEmptyTable = !loading && !loadError && jobs.length === 0;
 
   return (
     <div className="min-h-screen bg-white font-sans text-neutral-900 antialiased">
@@ -94,6 +202,64 @@ export default function JobsPage() {
             results.
           </p>
         </div>
+
+        {/* Search */}
+        <section
+          className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50/80 p-4 shadow-sm sm:p-6"
+          aria-label="Search jobs"
+        >
+          <form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearchKeywords((k) => k.trim());
+              setSearchLocation((loc) => loc.trim());
+            }}
+          >
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="search-keywords"
+                className="mb-2 block text-xs font-semibold uppercase tracking-wide text-neutral-500"
+              >
+                Job title or keywords
+              </label>
+              <input
+                id="search-keywords"
+                type="search"
+                value={searchKeywords}
+                onChange={(e) => setSearchKeywords(e.target.value)}
+                placeholder="e.g. engineer, Stripe, product"
+                autoComplete="off"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
+              />
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-xs">
+              <label
+                htmlFor="search-location"
+                className="mb-2 block text-xs font-semibold uppercase tracking-wide text-neutral-500"
+              >
+                Location
+              </label>
+              <input
+                id="search-location"
+                type="search"
+                value={searchLocation}
+                onChange={(e) => setSearchLocation(e.target.value)}
+                placeholder="City, remote, hybrid…"
+                autoComplete="off"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none transition-shadow placeholder:text-neutral-400 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
+              />
+            </div>
+            <div className="shrink-0 sm:w-auto">
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-[#1D9E75] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] sm:w-auto"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+        </section>
 
         {/* Filter bar */}
         <section
@@ -220,6 +386,8 @@ export default function JobsPage() {
                   setLocationMode("all");
                   setMinSalary(120000);
                   setExperience("all");
+                  setSearchKeywords("");
+                  setSearchLocation("");
                 }}
                 className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
@@ -230,7 +398,6 @@ export default function JobsPage() {
         </section>
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
-          {/* Sidebar: below grid on small screens, left rail on large */}
           <aside className="order-2 shrink-0 lg:order-1 lg:w-56 xl:w-64">
             <div className="sticky top-24 space-y-6 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-5">
               <div>
@@ -238,7 +405,7 @@ export default function JobsPage() {
                   Results
                 </p>
                 <p className="mt-1 text-3xl font-bold tabular-nums text-neutral-900">
-                  {sorted.length}
+                  {loading ? "…" : sorted.length}
                 </p>
                 <p className="mt-1 text-sm text-neutral-600">
                   {sorted.length === 1 ? "job matches" : "jobs match"} your filters
@@ -266,15 +433,32 @@ export default function JobsPage() {
             </div>
           </aside>
 
-          {/* Job grid */}
           <div className="order-1 min-w-0 flex-1 lg:order-2">
-            {sorted.length === 0 ? (
+            {loading ? (
+              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
+                <p className="text-lg font-semibold text-neutral-900">Loading jobs…</p>
+                <p className="mt-2 text-sm text-neutral-600">Fetching listings from the server.</p>
+              </div>
+            ) : loadError ? (
+              <div className="rounded-2xl border border-dashed border-red-200 bg-red-50/40 px-6 py-16 text-center">
+                <p className="text-lg font-semibold text-neutral-900">Could not load jobs</p>
+                <p className="mt-2 text-sm text-neutral-600">{loadError}</p>
+              </div>
+            ) : showEmptyTable ? (
+              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
+                <p className="text-lg font-semibold text-neutral-900">No jobs found</p>
+                <p className="mt-2 text-sm text-neutral-600">
+                  There are no listings in the database yet. Check back soon.
+                </p>
+              </div>
+            ) : showEmptyFromFilters ? (
               <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-6 py-16 text-center">
                 <p className="text-lg font-semibold text-neutral-900">
                   No jobs match these filters
                 </p>
                 <p className="mt-2 text-sm text-neutral-600">
-                  Try widening salary range or clearing filters.
+                  Try different search terms, widening salary range, or clearing
+                  filters.
                 </p>
                 <button
                   type="button"
@@ -283,6 +467,8 @@ export default function JobsPage() {
                     setLocationMode("all");
                     setMinSalary(80000);
                     setExperience("all");
+                    setSearchKeywords("");
+                    setSearchLocation("");
                   }}
                   className="mt-6 inline-flex rounded-xl bg-[#1D9E75] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#188a66]"
                 >
@@ -304,3 +490,4 @@ export default function JobsPage() {
     </div>
   );
 }
+
