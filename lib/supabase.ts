@@ -1,21 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// Warn loudly when misconfigured, but don't crash the JS bundle.
-// createClient throws on empty/falsy URL or key, which prevents React from
-// hydrating the page and leaves all buttons non-interactive on production.
-if (typeof window !== "undefined" && (!supabaseUrl || !supabaseKey)) {
-  console.error(
-    "[Clearpost] NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY are not set. " +
-    "Go to Vercel → Project → Settings → Environment Variables, add both values, then redeploy."
-  );
-}
+const SUPABASE_URL = "https://gzphkfrbrcnpbcgsqrzd.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cGhrZnJicmNucGJjZ3NxcnpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDI5NjgsImV4cCI6MjA5MTE3ODk2OH0.74XZdEJRbatTpQAS4ixnjWitEqJNM_V73--Y-YbSi0k";
 
 export const supabase = createClient(
-  supabaseUrl ?? "https://placeholder.supabase.co",
-  supabaseKey ?? "placeholder-anon-key"
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? SUPABASE_ANON_KEY
 );
 
 // Sync the session access token into a cookie so the server-side middleware
