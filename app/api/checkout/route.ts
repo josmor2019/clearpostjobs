@@ -65,6 +65,11 @@ export async function POST(request: Request) {
       hasUrl: Boolean(session.url),
     });
 
+    if (!session.url) {
+      console.error("[api/checkout] session URL is null", { sessionId: session.id });
+      return NextResponse.json({ error: "Checkout session created but no URL returned." }, { status: 500 });
+    }
+
     return NextResponse.json({ url: session.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Checkout failed";

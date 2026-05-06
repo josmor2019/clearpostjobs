@@ -74,15 +74,15 @@ export default function PricingPage() {
 
   async function handleCheckout(planId: PlanId, priceId: string) {
     setError(null);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError("Please sign in before starting checkout.");
-      return;
-    }
-
     setLoadingPlan(planId);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = `/sign-in?redirect=/pricing`;
+        return;
+      }
+
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
