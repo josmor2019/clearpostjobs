@@ -23,7 +23,7 @@ export default function ApplyPage({ params }: { params: Promise<{ jobId: string 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
-        router.replace(`/sign-in?next=/apply/${jobId}`);
+        router.replace(`/sign-in?redirect=/apply/${jobId}`);
         return;
       }
       setEmail(user.email ?? "");
@@ -57,7 +57,7 @@ export default function ApplyPage({ params }: { params: Promise<{ jobId: string 
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) {
-        router.replace(`/sign-in?next=/apply/${jobId}`);
+        router.replace(`/sign-in?redirect=/apply/${jobId}`);
         return;
       }
 

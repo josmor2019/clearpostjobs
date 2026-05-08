@@ -15,9 +15,9 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  async function handleGoogleSignUp() {
+  async function handleOAuthSignUp(provider: "google" | "apple" | "azure" | "linkedin_oidc") {
     await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider,
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   }
@@ -326,7 +326,7 @@ export default function SignUpPage() {
             <div className="space-y-3">
               <button
                 type="button"
-                onClick={handleGoogleSignUp}
+                onClick={() => void handleOAuthSignUp("google")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -339,6 +339,7 @@ export default function SignUpPage() {
               </button>
               <button
                 type="button"
+                onClick={() => void handleOAuthSignUp("apple")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -351,6 +352,7 @@ export default function SignUpPage() {
               </button>
               <button
                 type="button"
+                onClick={() => void handleOAuthSignUp("azure")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
@@ -363,6 +365,7 @@ export default function SignUpPage() {
               </button>
               <button
                 type="button"
+                onClick={() => void handleOAuthSignUp("linkedin_oidc")}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
               >
                 <span
