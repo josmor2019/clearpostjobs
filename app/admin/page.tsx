@@ -71,7 +71,10 @@ export default function AdminPage() {
   async function runGhostJobRemoval() {
     setGhostRunning(true);
     setGhostResult(null);
-    const res = await fetch("/api/cron/remove-ghost-jobs");
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/cron/remove-ghost-jobs", {
+      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    });
     const data = (await res.json()) as { removed?: number; error?: string };
     setGhostResult(data.error ? `Error: ${data.error}` : `Removed ${data.removed ?? 0} ghost jobs.`);
     setGhostRunning(false);

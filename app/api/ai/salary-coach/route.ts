@@ -7,8 +7,29 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rl = rateLimit(`salary-coach:${ip}`, 5, 60 * 60 * 1000);
+  // Auth required — salary coach is Pro only
+  const token = request.headers.get("authorization")?.replace("Bearer ", "").trim();
+  if (!token) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey);
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const tier = await getSubscriptionTier(user.id);
+  if (!canUseAI(tier)) {
+    return NextResponse.json(
+      { error: "Salary coach is a Pro feature. Upgrade at /pricing." },
+      { status: 403 },
+    );
+  }
+
+  const rl = rateLimit(`salary-coach:${user.id}`, 5, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Rate limit reached. Try again in an hour." },
@@ -19,30 +40,6 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "AI features not configured." }, { status: 503 });
-  }
-
-  // Auth check — salary coach is Pro only
-  const token = request.headers.get("authorization")?.replace("Bearer ", "").trim();
-  let userId: string | null = null;
-
-  if (token) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (url && serviceKey) {
-      const supabase = createClient(url, serviceKey);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) userId = user.id;
-    }
-  }
-
-  if (userId) {
-    const tier = await getSubscriptionTier(userId);
-    if (!canUseAI(tier)) {
-      return NextResponse.json(
-        { error: "Salary coach is a Pro feature. Upgrade at /pricing." },
-        { status: 403 },
-      );
-    }
   }
 
   const body = (await request.json()) as {

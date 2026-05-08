@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { rateLimit } from "@/lib/rate-limit";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = rateLimit(`applicant-count:${ip}`, 60, 60 * 1000);
+  if (!rl.allowed) return NextResponse.json({}, { status: 429 });
+
   const url = new URL(req.url);
   const raw = url.searchParams.get("jobIds") ?? "";
   const jobIds = raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 50);

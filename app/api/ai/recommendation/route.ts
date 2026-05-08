@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { sanitizeText } from "@/lib/sanitize";
 
@@ -21,8 +22,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "AI features not configured." }, { status: 503 });
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rl = rateLimit(`ai:rec:${ip}`, 5, 60 * 60 * 1000);
+  const token = request.headers.get("authorization")?.replace("Bearer ", "").trim();
+  if (!token) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey);
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const rl = rateLimit(`ai:rec:${user.id}`, 5, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "AI rate limit reached. Try again in an hour." },

@@ -5,10 +5,11 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "").trim() ?? "";
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,6 +20,20 @@ export async function GET(request: Request) {
   }
 
   const supabase = createClient(supabaseUrl, serviceKey);
+
+  // Accept either the Vercel cron secret or an admin user JWT
+  if (!cronSecret || token !== cronSecret) {
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!(profile as Record<string, unknown> | null)?.is_admin) {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+  }
 
   const cutoff = new Date();
   cutoff.setHours(cutoff.getHours() - 48);
