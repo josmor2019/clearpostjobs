@@ -1,25 +1,32 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function ForgotPasswordPage() {
   const [activeTab, setActiveTab] = useState<"email" | "phone">("email");
-  const [showCodeStep, setShowCodeStep] = useState(false);
-  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const [secondsLeft, setSecondsLeft] = useState(5 * 60);
+
+  // email state
   const [emailInput, setEmailInput] = useState("");
   const [emailSent, setEmailSent] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
+  // phone state
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+  const [showCodeStep, setShowCodeStep] = useState(false);
+  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [secondsLeft, setSecondsLeft] = useState(5 * 60);
+  const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   useEffect(() => {
     if (!showCodeStep || secondsLeft <= 0) return;
-
     const timer = window.setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-
     return () => window.clearInterval(timer);
   }, [showCodeStep, secondsLeft]);
 
@@ -36,6 +43,53 @@ export default function ForgotPasswordPage() {
       next[index] = onlyDigit;
       return next;
     });
+    if (onlyDigit && index < 5) {
+      digitRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleDigitKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  }
+
+  async function sendPhoneOtp() {
+    const phone = "+1" + phoneInput.replace(/\D/g, "");
+    if (phone.length < 12) {
+      setPhoneError("Enter a valid 10-digit US phone number.");
+      return;
+    }
+    setPhoneError(null);
+    setPhoneSending(true);
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    setPhoneSending(false);
+    if (error) {
+      setPhoneError(error.message);
+      return;
+    }
+    setShowCodeStep(true);
+    setSecondsLeft(5 * 60);
+    setDigits(["", "", "", "", "", ""]);
+    setTimeout(() => digitRefs.current[0]?.focus(), 50);
+  }
+
+  async function verifyPhoneOtp() {
+    const phone = "+1" + phoneInput.replace(/\D/g, "");
+    const token = digits.join("");
+    if (token.length < 6) {
+      setPhoneError("Enter all 6 digits.");
+      return;
+    }
+    setPhoneError(null);
+    setPhoneVerifying(true);
+    const { error } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
+    setPhoneVerifying(false);
+    if (error) {
+      setPhoneError(error.message);
+      return;
+    }
+    window.location.href = "/reset-password";
   }
 
   return (
@@ -139,6 +193,10 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
 
+            {phoneError && activeTab === "phone" && (
+              <p className="mb-3 text-sm font-medium text-red-600" role="alert">{phoneError}</p>
+            )}
+
             {activeTab === "email" ? (
               emailSent ? (
                 <div className="rounded-xl border border-[#1D9E75]/30 bg-[#1D9E75]/5 p-5 text-center">
@@ -204,12 +262,7 @@ export default function ForgotPasswordPage() {
               <div className="space-y-4">
                 <form
                   className="space-y-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    setShowCodeStep(true);
-                    setSecondsLeft(5 * 60);
-                    setDigits(["", "", "", "", "", ""]);
-                  }}
+                  onSubmit={async (e) => { e.preventDefault(); await sendPhoneOtp(); }}
                 >
                   <div>
                     <label
@@ -228,32 +281,38 @@ export default function ForgotPasswordPage() {
                         type="tel"
                         autoComplete="tel"
                         placeholder="(555) 123-4567"
-                        className="w-full rounded-r-xl border-0 px-4 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        disabled={showCodeStep}
+                        className="w-full rounded-r-xl border-0 px-4 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 disabled:opacity-60"
                       />
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
-                  >
-                    Send 6-digit code
-                  </button>
+                  {!showCodeStep && (
+                    <button
+                      type="submit"
+                      disabled={phoneSending}
+                      className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
+                    >
+                      {phoneSending ? "Sending…" : "Send 6-digit code"}
+                    </button>
+                  )}
                 </form>
 
-                {showCodeStep ? (
+                {showCodeStep && (
                   <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
                     <p className="text-sm font-medium text-neutral-700">
-                      Enter verification code
+                      Enter the code sent to +1 {phoneInput}
                     </p>
                     <div className="mt-3 grid grid-cols-6 gap-2">
                       {digits.map((digit, index) => (
                         <input
                           key={index}
+                          ref={(el) => { digitRefs.current[index] = el; }}
                           value={digit}
-                          onChange={(e) =>
-                            handleDigitChange(index, e.target.value)
-                          }
+                          onChange={(e) => handleDigitChange(index, e.target.value)}
+                          onKeyDown={(e) => handleDigitKeyDown(index, e)}
                           inputMode="numeric"
                           maxLength={1}
                           className="h-11 w-full rounded-lg border border-neutral-200 bg-white text-center text-base font-semibold text-neutral-900 outline-none transition-shadow focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/25"
@@ -263,16 +322,18 @@ export default function ForgotPasswordPage() {
                     </div>
                     <button
                       type="button"
-                      className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
+                      onClick={verifyPhoneOtp}
+                      disabled={phoneVerifying || digits.join("").length < 6}
+                      className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
                     >
-                      Verify code
+                      {phoneVerifying ? "Verifying…" : "Verify code"}
                     </button>
                     <div className="mt-3 text-center text-xs">
                       <button
                         type="button"
-                        onClick={() => setSecondsLeft(5 * 60)}
+                        onClick={async () => { setDigits(["", "", "", "", "", ""]); await sendPhoneOtp(); }}
                         className="font-semibold text-[#1D9E75] hover:text-[#188a66] disabled:cursor-not-allowed disabled:text-neutral-400"
-                        disabled={secondsLeft > 0}
+                        disabled={secondsLeft > 0 || phoneSending}
                       >
                         Resend code
                       </button>
@@ -283,7 +344,7 @@ export default function ForgotPasswordPage() {
                       </span>
                     </div>
                   </div>
-                ) : null}
+                )}
               </div>
             )}
 
