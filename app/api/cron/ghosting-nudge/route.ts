@@ -68,7 +68,7 @@ export async function GET(request: Request) {
         <p>A candidate applied to <strong>${job.title ?? "your listing"}</strong> at <strong>${job.company ?? "your company"}</strong> and you viewed their application more than 14 days ago.</p>
         <p>Clearpost is committed to keeping candidates informed. Could you take a moment to update their application status — even a rejection is better than silence.</p>
         <p>It takes less than 30 seconds and helps build your company's response rate on Clearpost.</p>
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://clearpost.io"}/employer/dashboard" style="display:inline-block;margin-top:12px;padding:10px 20px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">
+        <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? "https://clearpostjobs.com"}/employer/dashboard" style="display:inline-block;margin-top:12px;padding:10px 20px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">
           Review applicant
         </a>
         <p style="color:#666;font-size:12px;margin-top:16px;">— Clearpost Ghosting Protection</p>

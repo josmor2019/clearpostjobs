@@ -211,6 +211,20 @@ export default function DashboardPage() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("payment") === "success") {
+        setShowPaymentSuccess(true);
+        // Remove the param from the URL without a page reload
+        const url = new URL(window.location.href);
+        url.searchParams.delete("payment");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,6 +412,24 @@ export default function DashboardPage() {
         </header>
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {showPaymentSuccess && (
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-[#1D9E75]/30 bg-[#1D9E75]/8 px-4 py-3">
+              <p className="text-sm font-medium text-[#147b5b]">
+                🎉 You&apos;re now on Pro — all features are unlocked.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPaymentSuccess(false)}
+                className="shrink-0 text-[#1D9E75] hover:text-[#147b5b]"
+                aria-label="Dismiss"
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          )}
+
           <section aria-label="Stats row" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {!authLoaded ? (
               Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)

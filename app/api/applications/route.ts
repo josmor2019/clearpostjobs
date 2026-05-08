@@ -95,14 +95,19 @@ export async function POST(request: NextRequest) {
     !profile || profile.subscription_status !== "active";
 
   if (isFreeTier) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
     const { count } = await supabase
       .from("applications")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .gte("applied_at", startOfMonth.toISOString());
 
     if ((count ?? 0) >= 3) {
       return NextResponse.json(
-        { error: "Free accounts are limited to 3 applications. Upgrade to Pro for unlimited." },
+        { error: "Free accounts are limited to 3 applications per month. Upgrade to Pro for unlimited." },
         { status: 403 },
       );
     }
