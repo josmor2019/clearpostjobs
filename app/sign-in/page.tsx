@@ -1,11 +1,16 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type FormEvent, Suspense } from "react";
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = (() => {
+    const r = searchParams.get("redirect") ?? "";
+    return r.startsWith("/") && !r.startsWith("//") ? r : "/dashboard";
+  })();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,9 +19,10 @@ export default function SignInPage() {
 
   async function handleOAuthSignIn(provider: "google" | "apple" | "azure" | "linkedin_oidc") {
     setError(null);
+    const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`;
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl },
     });
     if (oauthError) setError(oauthError.message);
   }
@@ -36,7 +42,7 @@ export default function SignInPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(redirectTo);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to fetch";
@@ -282,6 +288,14 @@ export default function SignInPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
   );
 }
 
