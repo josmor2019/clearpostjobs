@@ -1,94 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
-const INTERNSHIP_APPLICATIONS = [
-  {
-    id: "1",
-    company: "Stripe",
-    role: "Software Engineering Intern",
-    dateApplied: "Apr 14, 2026",
-    status: "Interview",
-  },
-  {
-    id: "2",
-    company: "Google",
-    role: "PM Intern",
-    dateApplied: "Apr 11, 2026",
-    status: "In Review",
-  },
-  {
-    id: "3",
-    company: "Airbnb",
-    role: "Design Intern",
-    dateApplied: "Apr 9, 2026",
-    status: "Applied",
-  },
-  {
-    id: "4",
-    company: "Meta",
-    role: "Data Science Intern",
-    dateApplied: "Apr 6, 2026",
-    status: "Rejected",
-  },
-] as const;
+type RecentApp = {
+  id: string;
+  status: string;
+  applied_at: string;
+  jobs: { title: string; company: string | null } | null;
+};
 
-const RECOMMENDED_INTERNSHIPS = [
-  {
-    id: "1",
-    company: "Notion",
-    title: "Product Design Intern",
-    stipend: "$7.5k/mo",
-    duration: "12 weeks",
-    location: "Remote (US)",
-    match: "93% match",
-  },
-  {
-    id: "2",
-    company: "Vercel",
-    title: "Developer Experience Intern",
-    stipend: "$8k/mo",
-    duration: "10 weeks",
-    location: "Remote",
-    match: "89% match",
-  },
-  {
-    id: "3",
-    company: "Linear",
-    title: "Engineering Intern, Frontend",
-    stipend: "$9k/mo",
-    duration: "12 weeks",
-    location: "San Francisco, CA",
-    match: "86% match",
-  },
-] as const;
-
-const PROFILE_ITEMS = [
-  { label: "Add profile photo", done: false },
-  { label: "Add resume", done: false },
-  { label: "Add GPA", done: false },
-  { label: "Add graduation date", done: false },
-  { label: "Verify .edu email", done: true },
-  { label: "Add skills", done: false },
-] as const;
-
-const REFERRAL_LINK = "https://clearpost.com/ref/jordan-lee-4821";
+const STATUS_DISPLAY: Record<string, string> = {
+  applied: "Applied",
+  reviewing: "In Review",
+  interview: "Interview",
+  rejected: "Rejected",
+  offered: "Offered",
+  hired: "Hired",
+};
 
 function statusClasses(status: string) {
-  if (status === "Applied") return "bg-neutral-100 text-neutral-700";
-  if (status === "In Review") return "bg-blue-100 text-blue-700";
-  if (status === "Interview") return "bg-[#1D9E75]/15 text-[#188a66]";
-  return "bg-red-100 text-red-700";
+  if (status === "applied") return "bg-neutral-100 text-neutral-700";
+  if (status === "reviewing") return "bg-blue-100 text-blue-700";
+  if (status === "interview") return "bg-[#1D9E75]/15 text-[#188a66]";
+  if (status === "rejected") return "bg-red-100 text-red-700";
+  return "bg-neutral-100 text-neutral-700";
 }
 
-function NavItem({ label, active = false }: { label: string; active?: boolean }) {
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase() || "??";
+}
+
+function NavLink({ label, href, active = false }: { label: string; href: string; active?: boolean }) {
   return (
     <a
-      href="#"
+      href={href}
       className={`inline-flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        active
-          ? "bg-[#1D9E75]/10 text-[#188a66]"
-          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+        active ? "bg-[#1D9E75]/10 text-[#188a66]" : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
       }`}
     >
       {label}
@@ -97,12 +48,58 @@ function NavItem({ label, active = false }: { label: string; active?: boolean })
 }
 
 export default function StudentDashboardPage() {
-  const completionPercent = 60;
+  const router = useRouter();
+  const [displayName, setDisplayName] = useState("");
+  const [userId, setUserId] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [totalApps, setTotalApps] = useState(0);
+  const [interviews, setInterviews] = useState(0);
+  const [recentApps, setRecentApps] = useState<RecentApp[]>([]);
+  const [profileData, setProfileData] = useState<{ avatar_url: string | null; resume_url: string | null; location: string | null; skills: string[] | null } | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (userError || !user) { router.replace("/sign-in"); return; }
+
+      setUserId(user.id);
+      setEmailVerified(!!user.email_confirmed_at);
+
+      const [profileRes, appsRes, appCountRes, interviewCountRes] = await Promise.all([
+        supabase.from("profiles").select("first_name, last_name, avatar_url, resume_url, location, skills").eq("id", user.id).maybeSingle(),
+        supabase.from("applications").select("id, status, applied_at, jobs(title, company)").eq("user_id", user.id).order("applied_at", { ascending: false }).limit(5),
+        supabase.from("applications").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("applications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "interview"),
+      ]);
+
+      if (cancelled) return;
+
+      const profile = profileRes.data;
+      const first = profile?.first_name ?? "";
+      const last = profile?.last_name ?? "";
+      setDisplayName(`${first} ${last}`.trim() || user.email ?? "");
+      setProfileData(profile ? { avatar_url: profile.avatar_url, resume_url: profile.resume_url, location: profile.location, skills: profile.skills } : null);
+      setTotalApps(appCountRes.count ?? 0);
+      setInterviews(interviewCountRes.count ?? 0);
+      setRecentApps((appsRes.data ?? []) as unknown as RecentApp[]);
+      setLoaded(true);
+    }
+
+    void load();
+    return () => { cancelled = true; };
+  }, [router]);
+
+  const referralLink = userId ? `${typeof window !== "undefined" ? window.location.origin : "https://clearpostjobs.vercel.app"}/ref/${userId.slice(0, 8)}` : "";
+
   async function copyReferralLink() {
+    if (!referralLink) return;
     try {
-      await navigator.clipboard.writeText(REFERRAL_LINK);
+      await navigator.clipboard.writeText(referralLink);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -110,28 +107,50 @@ export default function StudentDashboardPage() {
     }
   }
 
+  const profileItems = profileData ? [
+    { label: "Add profile photo", done: !!profileData.avatar_url },
+    { label: "Add resume", done: !!profileData.resume_url },
+    { label: "Add GPA", done: false },
+    { label: "Add graduation date", done: false },
+    { label: "Verify email", done: emailVerified },
+    { label: "Add skills", done: !!(profileData.skills && (profileData.skills as string[]).length > 0) },
+  ] : [
+    { label: "Add profile photo", done: false },
+    { label: "Add resume", done: false },
+    { label: "Add GPA", done: false },
+    { label: "Add graduation date", done: false },
+    { label: "Verify email", done: false },
+    { label: "Add skills", done: false },
+  ];
+
+  const completionPercent = profileData
+    ? Math.round((profileItems.filter((i) => i.done).length / profileItems.length) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-neutral-200 bg-white p-5 lg:block">
         <a href="/" className="mb-8 inline-flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1D9E75] text-sm font-bold text-white">
-            C
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-[#1D9E75]">
-            Clearpost
-          </span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1D9E75] text-sm font-bold text-white">C</span>
+          <span className="text-lg font-semibold tracking-tight text-[#1D9E75]">Clearpost</span>
         </a>
 
         <nav className="space-y-1">
-          <NavItem label="Dashboard" active />
-          <NavItem label="My Applications" />
-          <NavItem label="Saved Internships" />
-          <NavItem label="Messages" />
-          <NavItem label="Campus Ambassador" />
-          <NavItem label="Profile" />
-          <NavItem label="Resume" />
-          <NavItem label="Settings" />
-          <NavItem label="Sign out" />
+          <NavLink label="Dashboard" href="/dashboard/student" active />
+          <NavLink label="My Applications" href="/dashboard/applications" />
+          <NavLink label="Saved Internships" href="#" />
+          <NavLink label="Messages" href="#" />
+          <NavLink label="Campus Ambassador" href="#" />
+          <NavLink label="Profile" href="/dashboard/settings" />
+          <NavLink label="Resume" href="/dashboard/resume" />
+          <NavLink label="Settings" href="/dashboard/settings" />
+          <button
+            type="button"
+            onClick={() => void supabase.auth.signOut().then(() => router.replace("/sign-in"))}
+            className="inline-flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+          >
+            Sign out
+          </button>
         </nav>
       </aside>
 
@@ -141,37 +160,11 @@ export default function StudentDashboardPage() {
             <div>
               <p className="text-sm text-neutral-500">Welcome back</p>
               <h1 className="text-lg font-semibold tracking-tight text-neutral-900">
-                Jordan Lee
+                {displayName || "…"}
               </h1>
             </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100"
-                aria-label="Notifications, 2 unread"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                >
-                  <path
-                    d="M15 17H9m9-1V11a6 6 0 10-12 0v5l-2 2h16l-2-2z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
-                  2
-                </span>
-              </button>
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
-                JL
-              </div>
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
+              {displayName ? initials(displayName) : "…"}
             </div>
           </div>
         </header>
@@ -179,88 +172,39 @@ export default function StudentDashboardPage() {
         <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <section aria-label="Stats row" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: "Internships Applied", value: "5", icon: "briefcase" },
-              { label: "Saved Internships", value: "12", icon: "bookmark" },
-              { label: "Profile Views", value: "21", icon: "eye" },
-              { label: "Interview Requests", value: "1", icon: "chat" },
+              { label: "Internships Applied", value: loaded ? String(totalApps) : "…", icon: "briefcase" },
+              { label: "Saved Internships", value: "—", icon: "bookmark" },
+              { label: "Profile Views", value: "—", icon: "eye" },
+              { label: "Interview Requests", value: loaded ? String(interviews) : "…", icon: "chat" },
             ].map((stat) => (
-              <article
-                key={stat.label}
-                className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
-              >
+              <article key={stat.label} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm text-neutral-500">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900">
-                      {stat.value}
-                    </p>
+                    <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900">{stat.value}</p>
                   </div>
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D9E75]/12 text-[#1D9E75]">
-                    {stat.icon === "briefcase" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1M4 8h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    {stat.icon === "briefcase" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1M4 8h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "bookmark" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M6 4h12v16l-6-3-6 3V4z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "bookmark" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M6 4h12v16l-6-3-6 3V4z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "eye" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "eye" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "chat" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M4 5h16v11H8l-4 4V5z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "chat" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
+                    )}
                   </span>
                 </div>
               </article>
@@ -270,81 +214,49 @@ export default function StudentDashboardPage() {
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-neutral-900">Application Status</h2>
-              <p className="text-sm text-neutral-500">Your recent internship applications</p>
+              <p className="text-sm text-neutral-500">Your recent applications</p>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-neutral-200 text-left">
                 <thead className="bg-neutral-50">
                   <tr>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Company
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Role
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Date Applied
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Status
-                    </th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Company</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Role</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Date Applied</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {INTERNSHIP_APPLICATIONS.map((row) => (
-                    <tr key={row.id}>
-                      <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-neutral-900">
-                        {row.company}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-neutral-600">{row.role}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-sm text-neutral-600">
-                        {row.dateApplied}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(
-                            row.status,
-                          )}`}
-                        >
-                          {row.status}
-                        </span>
+                  {!loaded ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-neutral-400">Loading…</td>
+                    </tr>
+                  ) : recentApps.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-neutral-500">
+                        No applications yet.{" "}
+                        <a href="/internships" className="font-semibold text-[#1D9E75] hover:underline">Browse internships →</a>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recentApps.map((app) => (
+                      <tr key={app.id}>
+                        <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-neutral-900">{app.jobs?.company ?? "—"}</td>
+                        <td className="px-3 py-3 text-sm text-neutral-600">{app.jobs?.title ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-sm text-neutral-600">
+                          {new Date(app.applied_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(app.status)}`}>
+                            {STATUS_DISPLAY[app.status] ?? app.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          </section>
-
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">Recommended Internships</h2>
-              <p className="text-sm text-neutral-500">Picked for your profile and interests</p>
-            </div>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {RECOMMENDED_INTERNSHIPS.map((job) => (
-                <li key={job.id}>
-                  <article className="flex h-full flex-col rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm">
-                    <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
-                    <h3 className="mt-2 text-base font-semibold leading-snug text-neutral-900">
-                      {job.title}
-                    </h3>
-                    <p className="mt-2 text-sm font-semibold text-[#1D9E75]">{job.stipend}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs text-neutral-600">
-                        {job.duration}
-                      </span>
-                      <span className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs text-neutral-600">
-                        {job.location}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-xs font-bold uppercase tracking-wide text-[#188a66]">
-                      {job.match}
-                    </p>
-                  </article>
-                </li>
-              ))}
-            </ul>
           </section>
 
           <section className="overflow-hidden rounded-2xl border border-[#1D9E75]/30 bg-[#1D9E75] p-6 text-white shadow-sm sm:p-8">
@@ -353,35 +265,30 @@ export default function StudentDashboardPage() {
               Refer students and earn $10 per verified signup
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
-              <label htmlFor="referral-link" className="sr-only">
-                Referral link
-              </label>
+              <label htmlFor="referral-link" className="sr-only">Referral link</label>
               <input
                 id="referral-link"
                 readOnly
-                value={REFERRAL_LINK}
+                value={referralLink}
                 className="min-h-11 w-full flex-1 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm text-white outline-none ring-white/30 placeholder:text-white/60 focus:ring-2"
               />
               <button
                 type="button"
-                onClick={copyReferralLink}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-white px-5 text-sm font-semibold text-[#1D9E75] transition-colors hover:bg-white/90"
+                onClick={() => void copyReferralLink()}
+                disabled={!referralLink}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-white px-5 text-sm font-semibold text-[#1D9E75] transition-colors hover:bg-white/90 disabled:opacity-60"
               >
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                  Referrals
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums">8</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Referrals</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">0</p>
               </div>
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                  Earnings
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums">$80</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Earnings</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">$0</p>
               </div>
             </div>
           </section>
@@ -390,42 +297,24 @@ export default function StudentDashboardPage() {
             <h2 className="text-lg font-semibold text-neutral-900">Profile Completion</h2>
             <p className="mt-1 text-sm text-neutral-500">{completionPercent}% complete</p>
             <div className="mt-3 h-2 w-full rounded-full bg-neutral-200">
-              <div
-                className="h-2 rounded-full bg-[#1D9E75]"
-                style={{ width: `${completionPercent}%` }}
-              />
+              <div className="h-2 rounded-full bg-[#1D9E75]" style={{ width: `${completionPercent}%` }} />
             </div>
             <ul className="mt-5 space-y-2">
-              {PROFILE_ITEMS.map((item) => (
+              {profileItems.map((item) => (
                 <li key={item.label} className="flex items-center gap-2 text-sm">
                   <span
                     className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                      item.done
-                        ? "border-[#1D9E75] bg-[#1D9E75]/10 text-[#188a66]"
-                        : "border-neutral-300 text-neutral-400"
+                      item.done ? "border-[#1D9E75] bg-[#1D9E75]/10 text-[#188a66]" : "border-neutral-300 text-neutral-400"
                     }`}
                     aria-hidden
                   >
-                    {item.done ? (
-                      <svg
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-3.5 w-3.5"
-                      >
-                        <path
-                          d="M5 10.5L8.2 13.5L15 6.8"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    {item.done && (
+                      <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
+                        <path d="M5 10.5L8.2 13.5L15 6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
+                    )}
                   </span>
-                  <span className={item.done ? "text-neutral-600" : "text-neutral-700"}>
-                    {item.label}
-                  </span>
+                  <span className={item.done ? "text-neutral-600" : "text-neutral-700"}>{item.label}</span>
                 </li>
               ))}
             </ul>

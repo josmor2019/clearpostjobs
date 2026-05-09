@@ -127,7 +127,7 @@ function ConfidenceGauge({ score }: { score: number }) {
   );
 }
 
-function InternshipCard({ internship, confidenceScore }: { internship: Internship; confidenceScore?: number }) {
+function InternshipCard({ internship, confidenceScore, isSignedIn }: { internship: Internship; confidenceScore?: number; isSignedIn: boolean }) {
   return (
     <article className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:border-neutral-300 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
@@ -173,12 +173,12 @@ function InternshipCard({ internship, confidenceScore }: { internship: Internshi
       </p>
 
       <div className="mt-auto flex pt-5">
-        <button
-          type="button"
+        <a
+          href={isSignedIn ? `/apply/${internship.id}` : `/sign-in?redirect=/apply/${internship.id}`}
           className="inline-flex w-full items-center justify-center rounded-xl bg-[#1D9E75] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D9E75]"
         >
           Apply
-        </button>
+        </a>
       </div>
     </article>
   );
@@ -507,6 +507,7 @@ export default function InternshipsPage() {
                 <InternshipCard
                   internship={internship}
                   confidenceScore={isSignedIn ? computeConfidence(internship, isStudent, isEduVerified) : undefined}
+                  isSignedIn={isSignedIn}
                 />
               </li>
             ))}

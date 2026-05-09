@@ -3,157 +3,67 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { SkeletonBox, SkeletonStatCard, SkeletonTableRow } from "@/components/Skeleton";
+import { SkeletonStatCard, SkeletonTableRow } from "@/components/Skeleton";
 
-type NotificationItem = {
+type RecentApp = {
   id: string;
-  type: "green" | "red" | "yellow" | "blue";
-  message: string;
-  time: string;
-  read: boolean;
+  status: string;
+  applied_at: string;
+  jobs: { title: string; company: string | null } | null;
 };
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "1",
-    type: "green",
-    message: "Stripe wants to schedule an interview",
-    time: "2 minutes ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "red",
-    message: "Your application to Meta was not selected",
-    time: "1 hour ago",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "yellow",
-    message: "You have an interview with Figma in 15 minutes",
-    time: "2 hours ago",
-    read: false,
-  },
-  {
-    id: "4",
-    type: "blue",
-    message: "3 new jobs match your profile",
-    time: "5 hours ago",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "blue",
-    message: "Notion viewed your profile",
-    time: "Yesterday",
-    read: true,
-  },
-];
+type RecommendedJob = {
+  id: string;
+  title: string;
+  company: string | null;
+  location: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+};
 
-function dotClass(type: NotificationItem["type"]) {
-  if (type === "green") return "bg-emerald-500";
-  if (type === "red") return "bg-red-500";
-  if (type === "yellow") return "bg-amber-400";
-  return "bg-blue-500";
-}
+type ProfileData = {
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  resume_url: string | null;
+  location: string | null;
+  skills: string[] | null;
+};
 
-const RECENT_APPLICATIONS = [
-  {
-    id: "1",
-    company: "Stripe",
-    role: "Software Engineer, Payments Platform",
-    dateApplied: "Apr 12, 2026",
-    status: "In Review",
-  },
-  {
-    id: "2",
-    company: "Notion",
-    role: "Product Engineer, Growth",
-    dateApplied: "Apr 10, 2026",
-    status: "Applied",
-  },
-  {
-    id: "3",
-    company: "Figma",
-    role: "Frontend Engineer, Design Systems",
-    dateApplied: "Apr 8, 2026",
-    status: "Interview",
-  },
-  {
-    id: "4",
-    company: "Meta",
-    role: "Data Scientist",
-    dateApplied: "Apr 6, 2026",
-    status: "Rejected",
-  },
-  {
-    id: "5",
-    company: "Vercel",
-    role: "Developer Experience Engineer",
-    dateApplied: "Apr 5, 2026",
-    status: "In Review",
-  },
-] as const;
-
-const RECOMMENDED_JOBS = [
-  {
-    id: "1",
-    company: "Linear",
-    title: "Staff Frontend Engineer",
-    salary: "$220k - $290k",
-    location: "San Francisco, CA",
-    match: "94% match",
-  },
-  {
-    id: "2",
-    company: "Anthropic",
-    title: "Machine Learning Engineer, Inference",
-    salary: "$240k - $320k",
-    location: "Remote (US)",
-    match: "91% match",
-  },
-  {
-    id: "3",
-    company: "Airbnb",
-    title: "Senior Software Engineer, Marketplace",
-    salary: "$180k - $250k",
-    location: "Remote",
-    match: "88% match",
-  },
-] as const;
-
-const PROFILE_ITEMS = [
-  { label: "Add profile photo", done: false },
-  { label: "Add resume", done: false },
-  { label: "Add skills", done: false },
-  { label: "Add work experience", done: false },
-  { label: "Verify email", done: true },
-  { label: "Add location", done: true },
-] as const;
+const STATUS_DISPLAY: Record<string, string> = {
+  applied: "Applied",
+  reviewing: "In Review",
+  interview: "Interview",
+  rejected: "Rejected",
+  offered: "Offered",
+  hired: "Hired",
+};
 
 function statusClasses(status: string) {
-  if (status === "Applied") {
-    return "bg-neutral-100 text-neutral-700";
-  }
-  if (status === "In Review") {
-    return "bg-blue-100 text-blue-700";
-  }
-  if (status === "Interview") {
-    return "bg-[#1D9E75]/15 text-[#188a66]";
-  }
-  return "bg-red-100 text-red-700";
+  if (status === "applied") return "bg-neutral-100 text-neutral-700";
+  if (status === "reviewing") return "bg-blue-100 text-blue-700";
+  if (status === "interview") return "bg-[#1D9E75]/15 text-[#188a66]";
+  if (status === "rejected") return "bg-red-100 text-red-700";
+  if (status === "offered") return "bg-purple-100 text-purple-700";
+  if (status === "hired") return "bg-emerald-100 text-emerald-700";
+  return "bg-neutral-100 text-neutral-700";
 }
 
 function headerAvatarInitials(label: string) {
   const t = label.trim();
   if (!t) return "…";
   const parts = t.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
-  }
+  if (parts.length >= 2) return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
   if (t.length >= 2) return t.slice(0, 2).toUpperCase();
   return `${t[0]!}${t[0]!}`.toUpperCase();
+}
+
+function formatSalary(min: number | null, max: number | null): string | null {
+  if (!min && !max) return null;
+  const fmt = (n: number) => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n}`;
+  if (min && max) return `${fmt(min)} – ${fmt(max)}`;
+  if (min) return `${fmt(min)}+`;
+  return null;
 }
 
 const NAV_LINKS = [
@@ -192,9 +102,7 @@ function NavItem({ label, href, icon, active = false }: { label: string; href: s
     <a
       href={href}
       className={`inline-flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        active
-          ? "bg-[#1D9E75]/10 text-[#188a66]"
-          : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+        active ? "bg-[#1D9E75]/10 text-[#188a66]" : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
       }`}
     >
       <span className={active ? "text-[#1D9E75]" : "text-neutral-400"}>{icon}</span>
@@ -208,17 +116,18 @@ export default function DashboardPage() {
   const [displayName, setDisplayName] = useState("");
   const [authLoaded, setAuthLoaded] = useState(false);
   const [momentum, setMomentum] = useState<{ thisWeek: number; lastWeek: number } | null>(null);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [stats, setStats] = useState({ totalApplications: 0, interviews: 0 });
+  const [recentApps, setRecentApps] = useState<RecentApp[]>([]);
+  const [recommendedJobs, setRecommendedJobs] = useState<RecommendedJob[]>([]);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("payment") === "success") {
         setShowPaymentSuccess(true);
-        // Remove the param from the URL without a page reload
         const url = new URL(window.location.href);
         url.searchParams.delete("payment");
         window.history.replaceState({}, "", url.toString());
@@ -230,32 +139,31 @@ export default function DashboardPage() {
     let cancelled = false;
 
     async function load() {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (userError || !user) { router.replace("/sign-in"); return; }
+
+      setEmailVerified(!!user.email_confirmed_at);
+
+      const [profileRes, appsRes, appCountRes, interviewCountRes, jobsRes] = await Promise.all([
+        supabase.from("profiles").select("first_name, last_name, avatar_url, resume_url, location, skills").eq("id", user.id).maybeSingle(),
+        supabase.from("applications").select("id, status, applied_at, jobs(title, company)").eq("user_id", user.id).order("applied_at", { ascending: false }).limit(5),
+        supabase.from("applications").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("applications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "interview"),
+        supabase.from("jobs").select("id, title, company, location, salary_min, salary_max").eq("status", "active").limit(3),
+      ]);
 
       if (cancelled) return;
 
-      if (userError || !user) {
-        router.replace("/sign-in");
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
+      const profile = profileRes.data;
       const first = profile?.first_name ?? "";
       const last = profile?.last_name ?? "";
-      const fullName = `${first} ${last}`.trim();
-      const email = user.email ?? "";
-      setDisplayName(fullName || email);
+      setDisplayName(`${first} ${last}`.trim() || user.email ?? "");
+      setProfileData(profile);
       setAuthLoaded(true);
+      setRecentApps((appsRes.data ?? []) as unknown as RecentApp[]);
+      setStats({ totalApplications: appCountRes.count ?? 0, interviews: interviewCountRes.count ?? 0 });
+      setRecommendedJobs((jobsRes.data ?? []) as unknown as RecommendedJob[]);
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session && !cancelled) {
@@ -271,28 +179,35 @@ export default function DashboardPage() {
     }
 
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
-  const completionPercent = 70;
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const profileItems = profileData ? [
+    { label: "Add profile photo", done: !!profileData.avatar_url },
+    { label: "Add resume", done: !!profileData.resume_url },
+    { label: "Add skills", done: !!(profileData.skills && (profileData.skills as string[]).length > 0) },
+    { label: "Add work experience", done: false },
+    { label: "Verify email", done: emailVerified },
+    { label: "Add location", done: !!profileData.location },
+  ] : [
+    { label: "Add profile photo", done: false },
+    { label: "Add resume", done: false },
+    { label: "Add skills", done: false },
+    { label: "Add work experience", done: false },
+    { label: "Verify email", done: false },
+    { label: "Add location", done: false },
+  ];
 
-  function markAllAsRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }
+  const completionPercent = profileData
+    ? Math.round((profileItems.filter((i) => i.done).length / profileItems.length) * 100)
+    : 0;
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-neutral-200 bg-white p-5 lg:block">
         <a href="/" className="mb-8 inline-flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1D9E75] text-sm font-bold text-white">
-            C
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-[#1D9E75]">
-            Clearpost
-          </span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1D9E75] text-sm font-bold text-white">C</span>
+          <span className="text-lg font-semibold tracking-tight text-[#1D9E75]">Clearpost</span>
         </a>
 
         <nav className="space-y-0.5">
@@ -312,101 +227,11 @@ export default function DashboardPage() {
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight text-neutral-900">
-                Welcome back, {displayName || "…"}
-              </h1>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setNotificationsOpen((open) => !open)}
-                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100"
-                  aria-label="Notifications"
-                  aria-expanded={notificationsOpen}
-                  aria-haspopup="true"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                  >
-                    <path
-                      d="M15 17H9m9-1V11a6 6 0 10-12 0v5l-2 2h16l-2-2z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  {unreadCount > 0 ? (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  ) : null}
-                </button>
-
-                {notificationsOpen ? (
-                  <div
-                    className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl"
-                    role="dialog"
-                    aria-label="Notifications"
-                  >
-                    <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-                      <h2 className="text-sm font-semibold text-neutral-900">
-                        Notifications
-                      </h2>
-                      <button
-                        type="button"
-                        onClick={markAllAsRead}
-                        className="text-xs font-semibold text-[#1D9E75] hover:text-[#188a66]"
-                      >
-                        Mark all as read
-                      </button>
-                    </div>
-                    <ul className="max-h-80 divide-y divide-neutral-100 overflow-y-auto">
-                      {notifications.map((n) => (
-                        <li key={n.id}>
-                          <div
-                            className={`flex gap-3 px-4 py-3 ${
-                              n.read ? "bg-white" : "bg-[#1D9E75]/8"
-                            }`}
-                          >
-                            <span
-                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass(
-                                n.type,
-                              )}`}
-                              aria-hidden
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-neutral-900">
-                                {n.message}
-                              </p>
-                              <p className="mt-0.5 text-xs text-neutral-500">
-                                {n.time}
-                              </p>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="border-t border-neutral-100 px-4 py-3">
-                      <a
-                        href="#"
-                        className="text-sm font-semibold text-[#1D9E75] hover:text-[#188a66]"
-                      >
-                        View all notifications
-                      </a>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
-                {headerAvatarInitials(displayName)}
-              </div>
+            <h1 className="text-lg font-semibold tracking-tight text-neutral-900">
+              Welcome back, {displayName || "…"}
+            </h1>
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1D9E75]/15 text-sm font-bold text-[#188a66]">
+              {headerAvatarInitials(displayName)}
             </div>
           </div>
         </header>
@@ -415,7 +240,7 @@ export default function DashboardPage() {
           {showPaymentSuccess && (
             <div className="flex items-start justify-between gap-4 rounded-xl border border-[#1D9E75]/30 bg-[#1D9E75]/8 px-4 py-3">
               <p className="text-sm font-medium text-[#147b5b]">
-                🎉 You&apos;re now on Pro — all features are unlocked.
+                You&apos;re now on Pro — all features are unlocked.
               </p>
               <button
                 type="button"
@@ -434,10 +259,10 @@ export default function DashboardPage() {
             {!authLoaded ? (
               Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
             ) : [
-              { label: "Jobs Applied", value: "12", icon: "briefcase" },
-              { label: "Saved Jobs", value: "8", icon: "bookmark" },
-              { label: "Profile Views", value: "34", icon: "eye" },
-              { label: "Interview Requests", value: "2", icon: "chat" },
+              { label: "Jobs Applied", value: String(stats.totalApplications), icon: "briefcase" },
+              { label: "Saved Jobs", value: "—", icon: "bookmark" },
+              { label: "Profile Views", value: "—", icon: "eye" },
+              { label: "Interview Requests", value: String(stats.interviews), icon: "chat" },
             ].map((stat) => (
               <article
                 key={stat.label}
@@ -446,76 +271,30 @@ export default function DashboardPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm text-neutral-500">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900">
-                      {stat.value}
-                    </p>
+                    <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900">{stat.value}</p>
                   </div>
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D9E75]/12 text-[#1D9E75]">
-                    {stat.icon === "briefcase" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1M4 8h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    {stat.icon === "briefcase" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1M4 8h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "bookmark" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M6 4h12v16l-6-3-6 3V4z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "bookmark" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M6 4h12v16l-6-3-6 3V4z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "eye" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "eye" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
                       </svg>
-                    ) : null}
-                    {stat.icon === "chat" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                      >
-                        <path
-                          d="M4 5h16v11H8l-4 4V5z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                    )}
+                    {stat.icon === "chat" && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+                        <path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : null}
+                    )}
                   </span>
                 </div>
               </article>
@@ -572,78 +351,81 @@ export default function DashboardPage() {
               <table className="min-w-full divide-y divide-neutral-100 text-left">
                 <thead>
                   <tr>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Company
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Role
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Date Applied
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      Status
-                    </th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Company</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Role</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Date Applied</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {!authLoaded
-                    ? Array.from({ length: 4 }).map((_, i) => <SkeletonTableRow key={i} />)
-                    : RECENT_APPLICATIONS.map((application) => (
-                    <tr key={application.id} className="transition-colors hover:bg-neutral-50/50" >
-                      <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-neutral-900">
-                        {application.company}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-neutral-600">{application.role}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-sm text-neutral-600">
-                        {application.dateApplied}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(
-                            application.status,
-                          )}`}
-                        >
-                          {application.status}
-                        </span>
+                  {!authLoaded ? (
+                    Array.from({ length: 4 }).map((_, i) => <SkeletonTableRow key={i} />)
+                  ) : recentApps.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-neutral-500">
+                        No applications yet.{" "}
+                        <a href="/jobs" className="font-semibold text-[#1D9E75] hover:underline">Browse jobs →</a>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recentApps.map((app) => (
+                      <tr key={app.id} className="transition-colors hover:bg-neutral-50/50">
+                        <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-neutral-900">
+                          {app.jobs?.company ?? "—"}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-neutral-600">{app.jobs?.title ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-sm text-neutral-600">
+                          {new Date(app.applied_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(app.status)}`}>
+                            {STATUS_DISPLAY[app.status] ?? app.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </section>
 
-
           <section className="grid gap-6 xl:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm xl:col-span-2">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-neutral-900">Recommended Jobs</h2>
-                <p className="text-sm text-neutral-500">Based on your profile and activity</p>
+                <h2 className="text-lg font-semibold text-neutral-900">Browse Jobs</h2>
+                <p className="text-sm text-neutral-500">Active openings on Clearpost</p>
               </div>
-              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {RECOMMENDED_JOBS.map((job) => (
-                  <li key={job.id}>
-                    <article className="flex h-full flex-col rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-neutral-900">{job.company}</p>
-                        <span className="shrink-0 inline-flex items-center rounded-full bg-[#1D9E75]/12 px-2 py-0.5 text-xs font-bold text-[#188a66]">
-                          {job.match}
-                        </span>
-                      </div>
-                      <h3 className="mt-2 text-base font-semibold leading-snug text-neutral-900">
-                        {job.title}
-                      </h3>
-                      <p className="mt-2 text-sm font-semibold text-[#1D9E75]">{job.salary}</p>
-                      <p className="mt-1 text-sm text-neutral-600">{job.location}</p>
-                      <div className="mt-3 flex gap-2">
-                        <a href="/jobs" className="inline-flex rounded-lg bg-[#1D9E75] px-3 py-1 text-xs font-semibold text-white hover:bg-[#188a66]">Apply</a>
-                        <button type="button" className="inline-flex rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Save</button>
-                      </div>
-                    </article>
-                  </li>
-                ))}
-              </ul>
+              {!authLoaded ? (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-36 animate-pulse rounded-xl bg-neutral-100" />
+                  ))}
+                </div>
+              ) : recommendedJobs.length === 0 ? (
+                <div className="rounded-xl border border-neutral-100 bg-neutral-50 py-10 text-center">
+                  <p className="text-sm text-neutral-500">No active jobs yet.</p>
+                </div>
+              ) : (
+                <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {recommendedJobs.map((job) => {
+                    const salary = formatSalary(job.salary_min, job.salary_max);
+                    return (
+                      <li key={job.id}>
+                        <article className="flex h-full flex-col rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm">
+                          <p className="text-sm font-semibold text-neutral-900">{job.company ?? "Company"}</p>
+                          <h3 className="mt-2 text-base font-semibold leading-snug text-neutral-900">{job.title}</h3>
+                          {salary && <p className="mt-2 text-sm font-semibold text-[#1D9E75]">{salary}</p>}
+                          {job.location && <p className="mt-1 text-sm text-neutral-600">{job.location}</p>}
+                          <div className="mt-3 flex gap-2">
+                            <a href={`/apply/${job.id}`} className="inline-flex rounded-lg bg-[#1D9E75] px-3 py-1 text-xs font-semibold text-white hover:bg-[#188a66]">Apply</a>
+                          </div>
+                        </article>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               <div className="mt-4 text-center">
                 <a href="/jobs" className="text-sm font-semibold text-[#1D9E75] hover:text-[#188a66]">Browse all verified jobs →</a>
               </div>
@@ -653,43 +435,25 @@ export default function DashboardPage() {
               <h2 className="text-lg font-semibold text-neutral-900">Profile Completion</h2>
               <p className="mt-1 text-sm text-neutral-500">{completionPercent}% complete</p>
               <div className="mt-3 h-2 w-full rounded-full bg-neutral-200">
-                <div
-                  className="h-2 rounded-full bg-[#1D9E75]"
-                  style={{ width: `${completionPercent}%` }}
-                />
+                <div className="h-2 rounded-full bg-[#1D9E75]" style={{ width: `${completionPercent}%` }} />
               </div>
 
               <ul className="mt-5 space-y-2">
-                {PROFILE_ITEMS.map((item) => (
+                {profileItems.map((item) => (
                   <li key={item.label} className="flex items-center gap-2 text-sm">
                     <span
                       className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                        item.done
-                          ? "border-[#1D9E75] bg-[#1D9E75]/10 text-[#188a66]"
-                          : "border-neutral-300 text-neutral-400"
+                        item.done ? "border-[#1D9E75] bg-[#1D9E75]/10 text-[#188a66]" : "border-neutral-300 text-neutral-400"
                       }`}
                       aria-hidden
                     >
-                      {item.done ? (
-                        <svg
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-3.5 w-3.5"
-                        >
-                          <path
-                            d="M5 10.5L8.2 13.5L15 6.8"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
+                      {item.done && (
+                        <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
+                          <path d="M5 10.5L8.2 13.5L15 6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                      ) : null}
+                      )}
                     </span>
-                    <span className={item.done ? "text-neutral-600" : "text-neutral-700"}>
-                      {item.label}
-                    </span>
+                    <span className={item.done ? "text-neutral-600" : "text-neutral-700"}>{item.label}</span>
                   </li>
                 ))}
               </ul>
@@ -700,4 +464,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
