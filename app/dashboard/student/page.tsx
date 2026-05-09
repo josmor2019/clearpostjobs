@@ -82,7 +82,7 @@ export default function StudentDashboardPage() {
       const profile = profileRes.data;
       const first = profile?.first_name ?? "";
       const last = profile?.last_name ?? "";
-      setDisplayName(`${first} ${last}`.trim() || user.email ?? "");
+      setDisplayName(`${first} ${last}`.trim() || (user.email ?? ""));
       setProfileData(profile ? { avatar_url: profile.avatar_url, resume_url: profile.resume_url, location: profile.location, skills: profile.skills } : null);
       setTotalApps(appCountRes.count ?? 0);
       setInterviews(interviewCountRes.count ?? 0);

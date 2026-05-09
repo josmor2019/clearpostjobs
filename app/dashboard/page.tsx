@@ -158,7 +158,7 @@ export default function DashboardPage() {
       const profile = profileRes.data;
       const first = profile?.first_name ?? "";
       const last = profile?.last_name ?? "";
-      setDisplayName(`${first} ${last}`.trim() || user.email ?? "");
+      setDisplayName(`${first} ${last}`.trim() || (user.email ?? ""));
       setProfileData(profile);
       setAuthLoaded(true);
       setRecentApps((appsRes.data ?? []) as unknown as RecentApp[]);
