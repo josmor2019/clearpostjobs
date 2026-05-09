@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/remove-ghost-jobs",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/ghosting-nudge",
+      "schedule": "0 9 * * *"
     }
   ]
 }

@@ -182,7 +182,7 @@ export default function SalaryGuidePage() {
             Salary Guide
           </h1>
           <p className="mt-2 max-w-2xl text-neutral-600">
-            Real salary data from verified job listings on Clearpost
+            Estimated market salary ranges based on industry benchmarks
           </p>
         </div>
 
@@ -301,34 +301,6 @@ export default function SalaryGuidePage() {
           </div>
         </section>
 
-        <section className="mb-6 grid gap-4 md:grid-cols-3" aria-label="Summary stats">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Average salary
-            </p>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-[#1D9E75]">
-              $142k
-            </p>
-          </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Highest paying role
-            </p>
-            <p className="mt-2 text-xl font-bold tracking-tight text-neutral-900">
-              Staff Engineer
-            </p>
-            <p className="mt-1 text-sm font-semibold text-[#1D9E75]">$285k</p>
-          </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Most in demand
-            </p>
-            <p className="mt-2 text-xl font-bold tracking-tight text-neutral-900">
-              Software Engineer
-            </p>
-          </div>
-        </section>
-
         <section
           className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
           aria-label="Salary table"
@@ -404,7 +376,7 @@ export default function SalaryGuidePage() {
         </section>
 
         <p className="mt-5 text-xs text-neutral-500">
-          Salary data is sourced from verified employer listings on Clearpost
+          Salary ranges are market estimates based on industry benchmarks. They are not sourced from Clearpost listings and should be used for reference only.
         </p>
       </main>
     </div>

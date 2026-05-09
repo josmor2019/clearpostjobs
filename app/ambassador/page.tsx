@@ -33,10 +33,23 @@ export default function AmbassadorPage() {
     setError(null);
     setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 800));
-
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      const res = await fetch("/api/ambassador", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, school, year, why }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Failed to submit. Please try again.");
+      } else {
+        setSubmitted(true);
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Owner\\\\clearpostjobs\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(vercel env *)",
+      "Bash(npx vercel *)",
+      "Bash(curl *)",
+      "Bash(wait)",
+      "Read(//c/Users/Owner/.local/share/com.vercel.cli/**)",
+      "Read(//c/Users/Owner/.config/vercel/**)",
+      "Bash(python3 *)",
+      "Bash(node *)",
+      "Bash(git commit *)",
+      "Bash(stripe version *)",
+      "Bash(winget install *)",
+      "Bash(export PATH=\"$PATH:/c/Users/Owner/AppData/Local/Microsoft/WinGet/Packages/Stripe.StripeCLI_Microsoft.Winget.Source_8wekyb3d8bbwe\")",
+      "Bash(/c/Users/Owner/AppData/Local/Microsoft/WinGet/Links/stripe version *)",
+      "Bash(/c/Users/Owner/AppData/Local/Microsoft/WinGet/Links/stripe config *)",
+      "Bash(cmd *)",
+      "Bash(npx tsc *)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Owner\\\\clearpostjobs\\\\app\\\\env-test\\\\page.tsx\" -Force)",
+      "Bash(Write-Output \"Deleted\")",
+      "Read(//mnt/c/Users/Owner/**)",
+      "Bash(gh run *)"
+    ]
+  }
+}

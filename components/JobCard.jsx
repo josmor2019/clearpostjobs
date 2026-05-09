@@ -44,10 +44,12 @@ function MatchBadge({ score }) {
  *   titleTag?: string,
  *   matchScore?: number | null,
  *   responseStats?: { responseRate: number; avgDays: number | null } | null,
- *   applicantCount?: number | null
+ *   applicantCount?: number | null,
+ *   isSaved?: boolean,
+ *   onSaveToggle?: (jobId: string, save: boolean) => void
  * }} props
  */
-export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null, applicantCount = null }) {
+export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats = null, applicantCount = null, isSaved = false, onSaveToggle = null }) {
   const Title = titleTag;
   const logoColor = hashCompany(job.company);
 
@@ -133,12 +135,26 @@ export function JobCard({ job, titleTag = "h2", matchScore = null, responseStats
         <span className="text-[11px] text-neutral-400">
           {formatPosted(job.posted)}
         </span>
-        <button
-          type="button"
-          className="rounded-xl bg-[#1D9E75] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] active:scale-95"
-        >
-          Apply now
-        </button>
+        <div className="flex items-center gap-2">
+          {onSaveToggle && (
+            <button
+              type="button"
+              onClick={() => onSaveToggle(job.id, !isSaved)}
+              aria-label={isSaved ? "Unsave job" : "Save job"}
+              className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors ${isSaved ? "border-[#1D9E75] bg-[#1D9E75]/10 text-[#1D9E75]" : "border-neutral-200 bg-white text-neutral-400 hover:border-[#1D9E75]/50 hover:text-[#1D9E75]"}`}
+            >
+              <svg viewBox="0 0 20 20" fill={isSaved ? "currentColor" : "none"} className="h-4 w-4" aria-hidden>
+                <path d="M5 3h10v14l-5-2.5L5 17V3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <a
+            href={`/apply/${job.id}`}
+            className="rounded-xl bg-[#1D9E75] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#188a66] active:scale-95"
+          >
+            Apply now
+          </a>
+        </div>
       </div>
     </article>
   );

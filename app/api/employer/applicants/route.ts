@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { sanitizeText } from "@/lib/sanitize";
+import { sendEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -133,12 +134,67 @@ export async function PATCH(request: NextRequest) {
   const isOwner = job?.employer_id === user.id || job?.user_id === user.id;
   if (!isOwner) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
+  const { data: fullApp } = await supabase
+    .from("applications")
+    .select("user_id, jobs(title, company)")
+    .eq("id", applicationId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("applications")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", applicationId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notify applicant by email
+  if (fullApp?.user_id) {
+    const { data: applicantProfile } = await supabase
+      .from("profiles")
+      .select("email, first_name")
+      .eq("id", fullApp.user_id)
+      .maybeSingle();
+
+    if (applicantProfile?.email) {
+      const job = Array.isArray(fullApp.jobs) ? fullApp.jobs[0] : fullApp.jobs;
+      const jobTitle = (job as { title?: string } | null)?.title ?? "your role";
+      const company = (job as { company?: string } | null)?.company ?? "the employer";
+      const firstName = applicantProfile.first_name ?? "there";
+
+      const STATUS_MESSAGES: Record<string, { subject: string; body: string }> = {
+        reviewing: {
+          subject: `Your application to ${company} is being reviewed`,
+          body: `<p>Hi ${firstName},</p><p>Good news — <strong>${company}</strong> is now reviewing your application for <strong>${jobTitle}</strong>.</p><p>We'll notify you of any further updates.</p>`,
+        },
+        interview: {
+          subject: `Interview request from ${company}`,
+          body: `<p>Hi ${firstName},</p><p>Congratulations! <strong>${company}</strong> wants to schedule an interview for <strong>${jobTitle}</strong>.</p><p>Check your email for further details from the employer, or log in to your Clearpost dashboard.</p>`,
+        },
+        rejected: {
+          subject: `Update on your application to ${company}`,
+          body: `<p>Hi ${firstName},</p><p>Thank you for applying to <strong>${jobTitle}</strong> at <strong>${company}</strong>. After careful review, they've decided to move forward with other candidates.</p><p>Don't be discouraged — keep applying. Your next opportunity is out there.</p>`,
+        },
+        offered: {
+          subject: `Offer extended from ${company}!`,
+          body: `<p>Hi ${firstName},</p><p>Great news — <strong>${company}</strong> has extended an offer for <strong>${jobTitle}</strong>!</p><p>Log in to your Clearpost dashboard to view details and respond.</p>`,
+        },
+        hired: {
+          subject: `Congratulations — you've been hired at ${company}!`,
+          body: `<p>Hi ${firstName},</p><p>Congratulations! <strong>${company}</strong> has confirmed your hire for <strong>${jobTitle}</strong>. Welcome aboard!</p>`,
+        },
+      };
+
+      const msg = STATUS_MESSAGES[status];
+      if (msg) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://clearpostjobs.vercel.app";
+        await sendEmail({
+          to: applicantProfile.email,
+          subject: msg.subject,
+          html: `${msg.body}<p style="margin-top:16px;"><a href="${siteUrl}/dashboard" style="display:inline-block;padding:10px 20px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">View Dashboard</a></p><p style="color:#666;font-size:12px;margin-top:16px;">— Clearpost</p>`,
+        }).catch(() => {});
+      }
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

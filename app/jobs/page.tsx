@@ -110,6 +110,8 @@ export default function JobsPage() {
   const [userSkills, setUserSkills] = useState("");
   const [userTitle, setUserTitle] = useState("");
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const [jobType, setJobType] = useState("all");
   const [locationMode, setLocationMode] = useState("all");
@@ -129,14 +131,26 @@ export default function JobsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!cancelled && user) {
         setIsSignedIn(true);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("skills, job_title")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (!cancelled && profile) {
-          setUserSkills(String(profile.skills ?? ""));
-          setUserTitle(String(profile.job_title ?? ""));
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token ?? null;
+        if (!cancelled) setSessionToken(token);
+
+        const [profileRes, savedRes] = await Promise.all([
+          supabase.from("profiles").select("skills, job_title").eq("id", user.id).maybeSingle(),
+          token
+            ? fetch("/api/saved-jobs", { headers: { Authorization: `Bearer ${token}` } })
+                .then((r) => r.ok ? r.json() : { savedJobIds: [] })
+                .then((d: { savedJobIds?: string[] }) => d.savedJobIds ?? [])
+                .catch(() => [] as string[])
+            : Promise.resolve([] as string[]),
+        ]);
+
+        if (!cancelled) {
+          if (profileRes.data) {
+            setUserSkills(String(profileRes.data.skills ?? ""));
+            setUserTitle(String(profileRes.data.job_title ?? ""));
+          }
+          setSavedJobIds(new Set(savedRes));
         }
       }
 
@@ -192,6 +206,29 @@ export default function JobsPage() {
 
   const sliderMax = 350000;
   const sliderMin = 80000;
+
+  async function handleSaveToggle(jobId: string, save: boolean) {
+    if (!sessionToken) return;
+    setSavedJobIds((prev) => {
+      const next = new Set(prev);
+      if (save) next.add(jobId); else next.delete(jobId);
+      return next;
+    });
+    try {
+      await fetch("/api/saved-jobs", {
+        method: save ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+        body: JSON.stringify({ jobId }),
+      });
+    } catch {
+      // revert on error
+      setSavedJobIds((prev) => {
+        const next = new Set(prev);
+        if (save) next.delete(jobId); else next.add(jobId);
+        return next;
+      });
+    }
+  }
 
   const showEmptyFromFilters = !loading && !loadError && jobs.length > 0 && sorted.length === 0;
   const showEmptyTable = !loading && !loadError && jobs.length === 0;
@@ -551,6 +588,8 @@ export default function JobsPage() {
                       titleTag="h2"
                       matchScore={isSignedIn ? computeMatchScore(job, userSkills, userTitle) : null}
                       applicantCount={appCounts[job.id] ?? null}
+                      isSaved={savedJobIds.has(job.id)}
+                      onSaveToggle={isSignedIn ? handleSaveToggle : null}
                     />
                   </li>
                 ))}
