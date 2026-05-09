@@ -52,7 +52,41 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ applicants: data ?? [] });
+  const apps = data ?? [];
+
+  // Enrich with applicant names and job titles
+  const userIds = [...new Set(apps.map((a) => a.user_id as string))];
+  const appJobIds = [...new Set(apps.map((a) => a.job_id as string))];
+
+  const [profilesRes, jobsRes] = await Promise.all([
+    userIds.length > 0
+      ? supabase.from("profiles").select("id, full_name").in("id", userIds)
+      : Promise.resolve({ data: [] }),
+    appJobIds.length > 0
+      ? supabase.from("jobs").select("id, title").in("id", appJobIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const nameMap = Object.fromEntries(
+    ((profilesRes.data ?? []) as { id: string; full_name: string | null }[]).map((p) => [
+      p.id,
+      p.full_name ?? "Applicant",
+    ]),
+  );
+  const titleMap = Object.fromEntries(
+    ((jobsRes.data ?? []) as { id: string; title: string | null }[]).map((j) => [
+      j.id,
+      j.title ?? "Job",
+    ]),
+  );
+
+  const enriched = apps.map((a) => ({
+    ...a,
+    applicant_name: nameMap[a.user_id as string] ?? "Applicant",
+    job_title: titleMap[a.job_id as string] ?? "Unknown Role",
+  }));
+
+  return NextResponse.json({ applicants: enriched });
 }
 
 export async function PATCH(request: NextRequest) {
